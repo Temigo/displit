@@ -7,9 +7,19 @@ class Dipole {
         Double_t rapidity; 
         Double_t radius; // half length of dipole
 
-        Dipole * parent;
+        /*Dipole * parent;
         Dipole * child1;
-        Dipole * child2;
+        Dipole * child2;*/
 
-        Dipole();
+        // Because we cannot store custom data types in TTree
+        // Binary tree => use indexes
+        // Long64_t : from 0 to 2^64-1
+        Long64_t depth;
+        Long64_t index;
+
+        Bool_t isLeaf;
+
+        Dipole(Long64_t depth, Long64_t index);
+        Long64_t GetParentDepth();
+        Long64_t GetParentIndex();
 };

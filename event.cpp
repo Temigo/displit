@@ -14,6 +14,7 @@
 #include <TApplication.h>
 #include <TFile.h>
 #include <queue>
+#include <TVector.h>
 
 Double_t RHO = 0.;
 Double_t LAMBDA = 0.;
@@ -122,7 +123,7 @@ Double_t Event::y_generate(Double_t rho)
     return y_distribution->GetRandom();*/
 }
 
-// Draw gluon
+// Draw a single gluon
 void Event::draw(Double_t x, Double_t y, Double_t rapidity)
 {
     TEllipse * ellipse = new TEllipse(x, y, 0.005 , 0.005);
@@ -147,11 +148,12 @@ void Event::generate(Double_t rho, Dipole * dipole, Dipole * dipole1, Dipole * d
     Double_t x, y;
     Double_t r = r_generate(rho);
     Double_t t = theta(r);
-    Double_t rapidity = y_generate(rho);    
+    Double_t rapidity1 = y_generate(rho);
+    Double_t rapidity2 = y_generate(rho);    
     Double_t quadrant = gRandom->Uniform(0., 1.);
 
-    dipole1->rapidity = dipole->rapidity + rapidity;
-    dipole2->rapidity = dipole->rapidity + rapidity;
+    dipole1->rapidity = dipole->rapidity + rapidity1;
+    dipole2->rapidity = dipole->rapidity + rapidity2;
     dipole1->radius = r / 2. ;
 
     // Set coordinates of centers in normalized referential
@@ -196,10 +198,10 @@ void Event::generate(Double_t rho, Dipole * dipole, Dipole * dipole1, Dipole * d
     dipole2->phi = dipole2->coord.Phi_0_2pi(dipole2->phi + dipole->phi);
 
     // Set references parent/child
-    dipole->child1 = dipole1;
+    /*dipole->child1 = dipole1;
     dipole->child2 = dipole2;
     dipole1->parent = dipole;
-    dipole2->parent = dipole;
+    dipole2->parent = dipole;*/
 }
 
 void Event::generate_normalized(Double_t rho, Double_t * x, Double_t * y, Double_t * rapidity)
@@ -234,10 +236,11 @@ void Event::generate_normalized(Double_t rho, Double_t * x, Double_t * y, Double
     //std::cerr << *x << " " << *y << std::endl;
 }
 
+// Test one generation : visualize probability distribution of the gluon at splitting
 void Event::bare_distribution()
 {
     bool DRAW_ELLIPSES = false; // If we want different colors, use ellipses
-    int number_occurrences = 20000;
+    int number_occurrences = 50000;
     Double_t rho = 0.05;
 
     Double_t x[number_occurrences], y[number_occurrences], rapidity[number_occurrences];
@@ -269,9 +272,9 @@ void Event::bare_distribution()
     }
 }
 
-void Event::make_tree(const char * filename)
+Long64_t Event::make_tree(const char * filename)
 {
-    Dipole dipole;
+    Dipole dipole(0,0);
 
     std::queue<Dipole> dipoles;
     dipoles.push(dipole);
@@ -282,37 +285,76 @@ void Event::make_tree(const char * filename)
     tree->Branch("radius", &dipole.radius, "radius/D");
     tree->Branch("phi", &dipole.phi, "phi/D");
     tree->Branch("coord", "TVector2", &dipole.coord);
+    tree->Branch("depth", &dipole.depth, "depth/L");
+    tree->Branch("index", &dipole.index, "index/L");
+    tree->Branch("isLeaf", &dipole.isLeaf, "isLeaf/O");
     //tree->Branch("parent", &dipole.parent, "parent/D");
     //tree->Branch("child1", "Dipole", &dipole.child1);
     //tree->Branch("child2", "Dipole", &dipole.child2);
 
     int number_occurrences = 20000;
-    Double_t rho = 0.05; // Cut-off
-    Double_t max_y = 10.0; // Maximal rapidity
+    Double_t rho = 0.01; // Cut-off
+    Double_t max_y = 1.5; // Maximal rapidity
     int i = 0;
 
+    Long64_t depth;
+    Long64_t index;
+    Long64_t max_depth;
+
     // FIXME remove number_occurrences and keep only max_y
-    while (i < number_occurrences && !dipoles.empty())
+    while (!dipoles.empty())
     {
         //std::cerr << dipoles.size() << std::endl;
         dipole = dipoles.front();
         dipoles.pop();
-        tree->Fill();
 
-        Dipole dipole1, dipole2;
+        if (dipole.depth < std::numeric_limits<Long64_t>::max())
+        {
+            depth = dipole.depth + 1;
+        }
+        else
+        {
+            std::cerr << "Warning : overflow on depth value" << std::endl;
+            break;
+        }
+
+        if (dipole.index < std::numeric_limits<Long64_t>::max())
+        {
+            index = dipole.index * 2;
+        }
+        else
+        {
+            std::cerr << "Warning : overflow on index value" << std::endl;
+            break;
+        }
+        
+        Dipole dipole1(depth, index), dipole2(depth, index+1);
         generate(rho, &dipole, &dipole1, &dipole2);
-        if (dipole1.rapidity <= max_y) dipoles.push(dipole1);
-        if (dipole2.rapidity <= max_y) dipoles.push(dipole2);
+        if (dipole1.rapidity <= max_y && dipole2.rapidity <= max_y)
+        {
+            dipoles.push(dipole1);
+            dipoles.push(dipole2);
+        } 
+        else
+        {
+            dipole.isLeaf = true;
+        }
         // FIXME for some reason the raw values differ slightly from the tree scan ! 
         //std::cerr << dipole1.radius << " " << dipole1.coord.X() << " " << dipole1.coord.Y() <<  std::endl;
         ++i;
+        max_depth = depth;
+        tree->Fill(); // Stores dipole
     }
+    --max_depth;// because the last depth is for leaves that we didn't stored
 
+    TVector * v = new TVector(1);
+    //v->SetName("max_depth");
+    v[0] = max_depth;
+    tree->GetUserInfo()->Add(v);
     //tree->Print();
     // Print entries
-    //tree->Scan("rapidity:radius:phi:coord.X():coord.Y():child1:child2:parent");
+    //tree->Scan("rapidity:radius:phi:coord.X():coord.Y():depth:index", "depth == 34");
     //tree->Draw("radius");
     output->Write();
+    return max_depth; 
 }
-
-

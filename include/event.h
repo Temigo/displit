@@ -24,5 +24,5 @@ class Event
         void generate(Double_t rho, Dipole * dipole, Dipole * dipole1, Dipole * dipole2);
         void generate_normalized(Double_t rho, Double_t * x, Double_t * y, Double_t * rapidity);
         void bare_distribution();
-        void make_tree(const char * filename = filename);
+        Long64_t make_tree(const char * filename = filename);
 };
