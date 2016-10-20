@@ -15,6 +15,9 @@
 #include <TFile.h>
 #include <queue>
 #include <TVector.h>
+#include <TH1D.h>
+#include <TH2D.h>
+#include <TString.h>
 
 Double_t RHO = 0.;
 Double_t LAMBDA = 0.;
@@ -33,7 +36,7 @@ Double_t Event::f(Double_t r)
     }
     else
     {
-        return 2. / (r * std::abs(1. -r*r)) * TMath::ATan(TMath::Abs(1. -r) / (1. +r) * TMath::Sqrt((r+1. / 2. )/(r-1. / 2.)));
+        return 2. / (r * TMath::Abs(1. -r*r)) * TMath::ATan(TMath::Abs(1. -r) / (1. +r) * TMath::Sqrt((r+1. / 2. )/(r-1. / 2.)));
     }
 }
 
@@ -45,6 +48,8 @@ Double_t Event::g(Double_t r)
 // Rejection method to generate radius r
 Double_t Event::r_generate(Double_t rho)
 {
+    //gRandom->SetSeed();
+    //TRandom r(0);
     //TF1 * g = new TF1("g", g, rho, TMath::Infinity());
     //Double_t result = g->GetRandom();
     Double_t R = gRandom->Uniform(0., 1.);
@@ -143,17 +148,18 @@ void Event::draw_tree(TTree * tree)
     //tree->Draw("rapidity", "", "");
 }
 
-void Event::generate(Double_t rho, Dipole * dipole, Dipole * dipole1, Dipole * dipole2)
+bool Event::generate(Double_t rho, Dipole * dipole, Dipole * dipole1, Dipole * dipole2, Double_t max_y)
 {
     Double_t x, y;
     Double_t r = r_generate(rho);
     Double_t t = theta(r);
-    Double_t rapidity1 = y_generate(rho);
-    Double_t rapidity2 = y_generate(rho);    
+    Double_t rapidity = y_generate(rho);   
     Double_t quadrant = gRandom->Uniform(0., 1.);
 
-    dipole1->rapidity = dipole->rapidity + rapidity1;
-    dipole2->rapidity = dipole->rapidity + rapidity2;
+    if (rapidity > max_y) return false;
+
+    dipole1->rapidity = dipole->rapidity + rapidity;
+    dipole2->rapidity = dipole->rapidity + rapidity;
     dipole1->radius = r / 2. ;
 
     // Set coordinates of centers in normalized referential
@@ -202,8 +208,10 @@ void Event::generate(Double_t rho, Dipole * dipole, Dipole * dipole1, Dipole * d
     dipole->child2 = dipole2;
     dipole1->parent = dipole;
     dipole2->parent = dipole;*/
+    return true;
 }
 
+// Split 1 dipole - to test the distribution
 void Event::generate_normalized(Double_t rho, Double_t * x, Double_t * y, Double_t * rapidity)
 {
     // Generate r, theta and y
@@ -240,15 +248,22 @@ void Event::generate_normalized(Double_t rho, Double_t * x, Double_t * y, Double
 void Event::bare_distribution()
 {
     bool DRAW_ELLIPSES = false; // If we want different colors, use ellipses
-    int number_occurrences = 50000;
-    Double_t rho = 0.05;
+    int number_occurrences = 300000;
+    Double_t rho = 0.01;
 
     Double_t x[number_occurrences], y[number_occurrences], rapidity[number_occurrences];
 
     TCanvas * C = new TCanvas("C", "C", 0, 0, 1024, 768);
+    C->Divide(2, 1, 0.05, 0.05);
+
+    C->cd(1);
     gPad->SetTitle("QCD");
     gPad->DrawFrame(-1.0, -0.8, 2.0, 0.8, "Gluons");
     
+    TH1D * hist = new TH1D("hist", "Plot X", 100, -1, 2);
+    Double_t hist_y = 0.04;
+    Double_t margin = 0.01;
+
     //TF1 * r_distribution = new TF1("r_distribution", r_distribution, rho, 1);
     //TF1 * theta_distribution = new TF1("theta_distribution", theta, 0, TMath::Pi());
     // Generate gluons according to dP
@@ -256,6 +271,7 @@ void Event::bare_distribution()
     {
         generate_normalized(rho, &x[i], &y[i], &rapidity[i]);
         if (DRAW_ELLIPSES) draw(x[i], y[i], rapidity[i]);
+        if (y[i] > (hist_y - margin) && y[i] < (hist_y + margin)) hist->Fill(x[i]);
     }
     C->Update();
 
@@ -270,9 +286,102 @@ void Event::bare_distribution()
         gluons->Draw("AP");
         C->Update();
     }
+
+    C->cd(2);
+    gPad->SetLogy();
+    hist->Draw("E1");
+
+    TF1 * p = new TF1("p", "[0] / ((x*x + [1]*[1])*((x-1)*(x-1)+[1]*[1]))", -0.5, 1.5);
+    p->FixParameter(1, hist_y);
+    hist->Fit("p", "R");
+
+    Double_t chi2 = p->GetChisquare();
+    std::cerr << "Chi2 value : " << chi2 << std::endl;   
 }
 
-Long64_t Event::make_tree(const char * filename)
+void Event::fit_r()
+{
+    int number_occurrences = 1000000;
+    Double_t rho = 0.01;
+
+    TCanvas * C = new TCanvas("C", "Fit r", 0, 0, 1024, 768);
+    TH1D * hist = new TH1D("hist", "hist", 400, 0, 2);
+    gPad->SetLogy();
+
+    for (int i = 0 ; i < number_occurrences ; ++i)
+    {
+        hist->Fill(r_generate(rho));
+    }
+    hist->Draw("E1");
+
+    TF1 * fr1 = new TF1("fr1", "[0] / (x*(1. - x*x))", 0, 0.5);
+    hist->Fit("fr1", "R");
+
+    TF1 * fr2 = new TF1("fr2", "2. * [0] / (x*TMath::Abs(1. - x*x)) * TMath::ATan(TMath::Abs(1. - x)/(1. + x) * TMath::Sqrt((x+1./2.)/(x-1./2.)))", 0.5, 2);
+    hist->Fit("fr2", "R+");
+
+    Double_t chi2_1 = fr1->GetChisquare();
+    Double_t chi2_2 = fr2->GetChisquare();
+    hist->SetTitle(TString::Format("#splitline{Distribution de la taille r du dipole (#rho = %.12g)}{%d bins - chi2 = %.12g et %.12g}", rho, hist->GetSize()-2, chi2_1, chi2_2));
+}
+
+void Event::fit_y()
+{
+    int number_occurrences = 1000000;
+    Double_t rho = 0.01;
+
+    TCanvas * C = new TCanvas("C", "Fit y", 0, 0, 1024, 768);
+    TH1D * hist = new TH1D("hist", "hist", 100, 0, 1);
+    gPad->SetLogy();
+
+    for (int i = 0 ; i < number_occurrences ; ++i)
+    {
+        hist->Fill(y_generate(rho));
+    }
+    hist->Draw("E1");
+
+    TF1 * fy = new TF1("fy", "[0] * exp(- [1] * x)", 0, 1);
+    fy->FixParameter(1, LAMBDA);
+    hist->Fit("fy", "R");
+
+    Double_t chi2 = fy->GetChisquare();
+    hist->SetTitle(TString::Format("#splitline{Distribution de la rapidite y du dipole (#rho = %.12g)}{%d bins - chi2 = %.12g}", rho, hist->GetSize()-2, chi2));  
+}
+
+void Event::fit_x()
+{
+    int number_occurrences = 1000000;
+    Double_t rho = 0.01;
+
+    Double_t x, y, rapidity;
+
+    TCanvas * C = new TCanvas("C", "C", 0, 0, 1024, 768);
+    
+    Double_t hist_y = 0.2;
+    Double_t margin = 0.005;
+    TH1D * hist = new TH1D("hist", "hist", 100, -0.5, 1.5);
+
+    //TF1 * r_distribution = new TF1("r_distribution", r_distribution, rho, 1);
+    //TF1 * theta_distribution = new TF1("theta_distribution", theta, 0, TMath::Pi());
+    // Generate gluons according to dP
+    for (int i = 0; i < number_occurrences; ++i)
+    {
+        generate_normalized(rho, &x, &y, &rapidity);
+        if (y > (hist_y - margin) && y < (hist_y + margin)) hist->Fill(x);
+    }
+
+    gPad->SetLogy();
+    hist->Draw("E1");
+
+    TF1 * p = new TF1("p", "[0] / ((x*x + [1]*[1])*((x-1)*(x-1)+[1]*[1]))", -0.3, 1.3);
+    p->FixParameter(1, hist_y);
+    hist->Fit("p", "R");
+
+    Double_t chi2 = p->GetChisquare();
+    hist->SetTitle(TString::Format("#splitline{Distribution of projection X with Y = %.12g +/- %.12g - #rho = %.12g}{%d bins - chi2 = %.12g}", hist_y, margin, rho, hist->GetSize()-2, chi2)); 
+}
+
+void Event::make_tree(const char * filename)
 {
     Dipole dipole(0,0);
 
@@ -292,7 +401,6 @@ Long64_t Event::make_tree(const char * filename)
     //tree->Branch("child1", "Dipole", &dipole.child1);
     //tree->Branch("child2", "Dipole", &dipole.child2);
 
-    int number_occurrences = 20000;
     Double_t rho = 0.01; // Cut-off
     Double_t max_y = 1.5; // Maximal rapidity
     int i = 0;
@@ -329,12 +437,12 @@ Long64_t Event::make_tree(const char * filename)
         }
         
         Dipole dipole1(depth, index), dipole2(depth, index+1);
-        generate(rho, &dipole, &dipole1, &dipole2);
-        if (dipole1.rapidity <= max_y && dipole2.rapidity <= max_y)
+        bool success = generate(rho, &dipole, &dipole1, &dipole2, max_y);
+        if (success)
         {
             dipoles.push(dipole1);
             dipoles.push(dipole2);
-        } 
+        }
         else
         {
             dipole.isLeaf = true;
@@ -356,5 +464,4 @@ Long64_t Event::make_tree(const char * filename)
     //tree->Scan("rapidity:radius:phi:coord.X():coord.Y():depth:index", "depth == 34");
     //tree->Draw("radius");
     output->Write();
-    return max_depth; 
 }

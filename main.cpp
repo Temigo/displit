@@ -12,6 +12,7 @@
 #include <sstream>
 #include <TVector.h>
 #include <TString.h>
+#include <TRandom.h>
 
 /*
 Double_t myFunction(Double_t par)
@@ -55,12 +56,14 @@ void general_plot(TApplication * myapp)
     htemp->GetYaxis()->SetTitle("Number of dipoles of radius r");
     
     c.cd(2);
+    gPad->SetLogy();
     tree->Draw("rapidity", "isLeaf && radius < 1.5 && radius > 0.5");
     TH1F *htemp2 = (TH1F*)gPad->GetPrimitive("htemp");
     TF1 * rapidity = new TF1("rapidity", "[1] * exp([0]*x)", 1, 1.4);
     htemp2->Fit("rapidity", "R");
 
     c.cd(3);
+    gPad->SetLogy();
     //tree->Draw("coord.X():coord.Y()", "isLeaf && coord.X() > -1. && coord.X() < 1. && coord.Y() < 1. && coord.Y() > -1.");
     tree->Draw("radius", "isLeaf && radius < 0.2");
     TH1F *htemp3 = (TH1F*)gPad->GetPrimitive("htemp");
@@ -88,6 +91,7 @@ void general_plot(TApplication * myapp)
 int main( int argc, const char* argv[] )
 {
     TApplication * myapp = new TApplication("myapp", 0, 0);
+    
     //connect(myapp,SIGNAL(lastWindowClosed()),TQtRootSlot::CintSlot(),SLOT(TerminateAndQuit());
     //p3a();
 
@@ -101,7 +105,7 @@ int main( int argc, const char* argv[] )
     if (val)
     {
         Event * e = new Event();
-        Long64_t max_depth = e->make_tree("tree.root");
+        e->make_tree("tree.root");
     }
 
     //draw_tree(tree);
@@ -120,10 +124,8 @@ int main( int argc, const char* argv[] )
     minuit->ExecuteCommand("SIMPLEX", 0, 0);
     Double_t bestX = minuit->GetParameter(0);*/
 
-    //general_plot(myapp);
-    Event e;
-    e.bare_distribution();
-    myapp->Run();
+    general_plot(myapp);
+    //myapp->Run();
 
     return 0;
 }

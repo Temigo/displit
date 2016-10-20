@@ -21,8 +21,13 @@ class Event
 
         void draw(Double_t x, Double_t y, Double_t rapidity);
         void draw_tree(TTree * tree);
-        void generate(Double_t rho, Dipole * dipole, Dipole * dipole1, Dipole * dipole2);
+        bool generate(Double_t rho, Dipole * dipole, Dipole * dipole1, Dipole * dipole2, Double_t max_y);
+
         void generate_normalized(Double_t rho, Double_t * x, Double_t * y, Double_t * rapidity);
         void bare_distribution();
-        Long64_t make_tree(const char * filename = filename);
+        void fit_r();
+        void fit_y();
+        void fit_x();
+        
+        void make_tree(const char * filename = filename);
 };
