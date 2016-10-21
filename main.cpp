@@ -84,7 +84,7 @@ void general_plot(TApplication * myapp)
     TF1 * n2 = new TF1("n2", "TMath::BesselI0([0] * sqrt(log(x)))", 0, 1);
     htemp4->Fit("n2", "R"); */   
 
-    //tree->MakeClass("MyClass");
+    //tree->MakeSelector("DrawEvent");
     myapp->Run();
 }
 
@@ -104,7 +104,7 @@ int main( int argc, const char* argv[] )
 
     if (val)
     {
-        Event * e = new Event();
+        Event * e = new Event(0.01, 1.5);
         e->make_tree("tree.root");
     }
 
@@ -124,8 +124,8 @@ int main( int argc, const char* argv[] )
     minuit->ExecuteCommand("SIMPLEX", 0, 0);
     Double_t bestX = minuit->GetParameter(0);*/
 
-    general_plot(myapp);
-    //myapp->Run();
+    //general_plot(myapp);
+    myapp->Run();
 
     return 0;
 }

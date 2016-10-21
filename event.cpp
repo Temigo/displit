@@ -18,14 +18,15 @@
 #include <TH1D.h>
 #include <TH2D.h>
 #include <TString.h>
+#include <TArrow.h>
 
 Double_t RHO = 0.;
 Double_t LAMBDA = 0.;
 Double_t MAX_Y = 2. ;
 
-Event::Event() :
-    rho(RHO),
-    max_y(MAX_Y)
+Event::Event(Double_t rho, Double_t max_y) :
+    rho(rho),
+    max_y(max_y)
 {}
 
 Double_t Event::f(Double_t r)
@@ -48,7 +49,7 @@ Double_t Event::g(Double_t r)
 // Rejection method to generate radius r
 Double_t Event::r_generate(Double_t rho)
 {
-    //gRandom->SetSeed();
+    
     //TRandom r(0);
     //TF1 * g = new TF1("g", g, rho, TMath::Infinity());
     //Double_t result = g->GetRandom();
@@ -150,66 +151,177 @@ void Event::draw_tree(TTree * tree)
 
 bool Event::generate(Double_t rho, Dipole * dipole, Dipole * dipole1, Dipole * dipole2, Double_t max_y)
 {
-    Double_t x, y;
+    // FIXME use SetSeed() here or not ?
+    //gRandom->SetSeed();
+    // First generate rho and theta in normalized referential
     Double_t r = r_generate(rho);
     Double_t t = theta(r);
     Double_t rapidity = y_generate(rho);   
-    Double_t quadrant = gRandom->Uniform(0., 1.);
+    Double_t hb = gRandom->Uniform(0., 1.); // Up or down quadrant
+    Double_t gd = gRandom->Uniform(0., 1.); // Left or right quadrant
 
-    if (rapidity > max_y) return false;
+    if (dipole->rapidity + rapidity > max_y) return false;
 
     dipole1->rapidity = dipole->rapidity + rapidity;
     dipole2->rapidity = dipole->rapidity + rapidity;
-    dipole1->radius = r / 2. ;
 
     // Set coordinates of centers in normalized referential
     // Use cartesian coordinates instead of SetMagPhi because of the four quadrants
-    if (quadrant < 0.25)
+    if (hb < 0.5)
     {
         dipole1->coord.Set(r * TMath::Cos(t), r * TMath::Sin(t));
-    }
-    else if (quadrant < 0.5)
-    {
-        dipole1->coord.Set(r * TMath::Cos(t), - r * TMath::Sin(t));
-    }
-    else if (quadrant < 0.75)
-    {
-        dipole1->coord.Set(1.0 - r * TMath::Cos(t), r * TMath::Sin(t));           
+        dipole1->phi = t;
+        dipole1->radius = r / 2. ;
     }
     else
     {
-        dipole1->coord.Set(1.0 - r * TMath::Cos(t), - r * TMath::Sin(t));           
+        dipole1->coord.Set(r * TMath::Cos(t), - r * TMath::Sin(t));
+        dipole1->phi = -t;
+        dipole1->radius = r / 2. ;
     }
-    TVector2 temp(-1.0, 0.0);
-    dipole2->coord = temp + dipole1->coord;
-    dipole2->radius = dipole2->coord.Mod() / 2.;
-    dipole1->coord = dipole1->coord / 2. + temp / 2.;
-    dipole2->coord = dipole2->coord / 2. - temp / 2.;
-    dipole1->phi = t;
-    dipole2->phi = dipole2->coord.Phi();
+
+    //dipole1->coord.Print();
+    // Get the right coordinates for the parameter impact
+    dipole1->coord /= 2.;
+    dipole2->coord = dipole1->coord + TVector2(0.5, 0.0);
+
+    TVector2 temp = dipole2->coord - TVector2(1, 0);
+    dipole2->phi = dipole2->coord.Phi_0_2pi(temp.Phi());
+    dipole2->radius = temp.Mod();
+    //std::cerr << dipole1->phi << " " << dipole2->phi << std::endl;
+    
+    // Exchange
+    if (gd < 0.5)
+    {
+        Double_t x = dipole2->coord.X();
+        dipole2->coord.Set(- dipole1->coord.X(), dipole1->coord.Y());
+        dipole2->coord += TVector2(1.0, 0.0);
+        dipole1->coord.Set(1.0 - x, dipole2->coord.Y());
+        Double_t phi = dipole1->phi;
+        dipole1->phi = TMath::Pi() - dipole2->phi;
+        dipole2->phi = - phi;
+        Double_t radius = dipole1->radius;
+        dipole1->radius = dipole2->radius;
+        dipole2->radius = radius;    
+    }
 
     // Now we have dipole1 and dipole2 in the normalized referential, get back
-    // Translation
-    dipole1->coord += dipole->coord;
-    dipole2->coord += dipole->coord;
-
     // Scale
-    dipole1->coord *= dipole->radius * 2.;
-    dipole2->coord *= dipole->radius * 2.;
+    Double_t scale_factor = dipole->radius * 2.;
+    //std::cerr << dipole->radius << " " << scale_factor << std::endl;
+    dipole1->coord *= scale_factor;
+    dipole2->coord *= scale_factor;
+    dipole1->radius *= scale_factor;
+    dipole2->radius *= scale_factor;
 
     // Rotate and stay in 0 - 2pi
-    dipole1->coord = dipole1->coord.Rotate(dipole->phi);
-    dipole2->coord = dipole2->coord.Rotate(dipole->phi);
-    dipole1->phi = dipole1->coord.Phi_0_2pi(dipole1->phi + dipole->phi);
-    dipole2->phi = dipole2->coord.Phi_0_2pi(dipole2->phi + dipole->phi);
+    dipole1->coord = TVector2(dipole1->coord.X()-dipole->radius, dipole1->coord.Y()).Rotate(dipole->phi) + TVector2(dipole->radius, 0);
+    dipole2->coord = TVector2(dipole2->coord.X()-dipole->radius, dipole2->coord.Y()).Rotate(dipole->phi) + TVector2(dipole->radius, 0);
 
-    // Set references parent/child
-    /*dipole->child1 = dipole1;
-    dipole->child2 = dipole2;
-    dipole1->parent = dipole;
-    dipole2->parent = dipole;*/
+    //dipole1->phi = dipole1->coord.Phi_0_2pi(dipole1->phi + dipole->phi);
+    //dipole2->phi = dipole2->coord.Phi_0_2pi(dipole2->phi + dipole->phi);
+    dipole1->phi = dipole1->phi + dipole->phi;
+    dipole2->phi = dipole2->phi + dipole->phi;
+
+    // Translation
+    TVector2 translation_vector = dipole->coord - TVector2(dipole->radius, 0.0);
+    //translation_vector.Print();
+    dipole1->coord += translation_vector;
+    dipole2->coord += translation_vector;
+
     return true;
 }
+
+void Event::make_tree(const char * filename)
+{
+    gRandom->SetSeed(); // /!\ IMPORTANT or we always get the same values
+    Dipole dipole(0,0);
+
+    std::queue<Dipole> dipoles;
+    dipoles.push(dipole);
+
+    TFile * output = new TFile(filename, "recreate");
+    TTree * tree = new TTree("T", "Gluons generated");
+    tree->Branch("rapidity", &dipole.rapidity, "rapidity/D");
+    tree->Branch("radius", &dipole.radius, "radius/D");
+    tree->Branch("phi", &dipole.phi, "phi/D");
+    tree->Branch("coord", "TVector2", &dipole.coord);
+    tree->Branch("depth", &dipole.depth, "depth/L");
+    tree->Branch("index", &dipole.index, "index/L");
+    tree->Branch("isLeaf", &dipole.isLeaf, "isLeaf/O");
+
+    int i = 0;
+    Long64_t depth;
+    Long64_t index;
+    Long64_t max_depth;
+
+    TCanvas * C = new TCanvas("C", "C", 0, 0, 3000, 2000);
+    gPad->DrawFrame(-1.0, -1, 2.0, 1.0, TString::Format("#splitline{Dipole splitting - rho = %.12g}{rapidity maximum = %.12g}", rho, max_y));
+
+    while (!dipoles.empty())
+    {
+        dipole = dipoles.front();
+        dipoles.pop();
+
+        if (dipole.depth < std::numeric_limits<Long64_t>::max())
+        {
+            depth = dipole.depth + 1;
+        }
+        else
+        {
+            std::cerr << "Warning : overflow on depth value" << std::endl;
+            break;
+        }
+
+        if (dipole.index < std::numeric_limits<Long64_t>::max())
+        {
+            index = dipole.index * 2;
+        }
+        else
+        {
+            std::cerr << "Warning : overflow on index value" << std::endl;
+            break;
+        }
+        
+        Dipole dipole1(depth, index), dipole2(depth, index+1);
+        bool success = generate(rho, &dipole, &dipole1, &dipole2, max_y);
+        if (success)
+        {
+            dipoles.push(dipole1);
+            dipoles.push(dipole2);
+        }
+        else
+        {
+            dipole.isLeaf = true;
+        }
+
+        if (dipole.isLeaf)
+        {
+            dipole.Draw();
+        }
+                  
+        // FIXME for some reason the raw values differ slightly from the tree scan ! 
+        //std::cerr << dipole1.radius << " " << dipole1.coord.X() << " " << dipole1.coord.Y() <<  std::endl;
+        ++i;
+        max_depth = depth;
+        tree->Fill(); // Stores dipole
+    }
+    C->Update();
+
+    --max_depth;// because the last depth is for leaves that we didn't stored
+
+    TVector * v = new TVector(1);
+    //v->SetName("max_depth");
+    v[0] = max_depth;
+    tree->GetUserInfo()->Add(v);
+    //tree->Print();
+    // Print entries
+    //tree->Scan("rapidity:radius:phi:coord.X():coord.Y():depth:index", "depth == 34");
+    //tree->Draw("radius");
+    output->Write();
+}
+
+/********************************************* NORMALIZED + FIT *************************/
 
 // Split 1 dipole - to test the distribution
 void Event::generate_normalized(Double_t rho, Double_t * x, Double_t * y, Double_t * rapidity)
@@ -379,89 +491,4 @@ void Event::fit_x()
 
     Double_t chi2 = p->GetChisquare();
     hist->SetTitle(TString::Format("#splitline{Distribution of projection X with Y = %.12g +/- %.12g - #rho = %.12g}{%d bins - chi2 = %.12g}", hist_y, margin, rho, hist->GetSize()-2, chi2)); 
-}
-
-void Event::make_tree(const char * filename)
-{
-    Dipole dipole(0,0);
-
-    std::queue<Dipole> dipoles;
-    dipoles.push(dipole);
-
-    TFile * output = new TFile(filename, "recreate");
-    TTree * tree = new TTree("T", "Gluons generated");
-    tree->Branch("rapidity", &dipole.rapidity, "rapidity/D");
-    tree->Branch("radius", &dipole.radius, "radius/D");
-    tree->Branch("phi", &dipole.phi, "phi/D");
-    tree->Branch("coord", "TVector2", &dipole.coord);
-    tree->Branch("depth", &dipole.depth, "depth/L");
-    tree->Branch("index", &dipole.index, "index/L");
-    tree->Branch("isLeaf", &dipole.isLeaf, "isLeaf/O");
-    //tree->Branch("parent", &dipole.parent, "parent/D");
-    //tree->Branch("child1", "Dipole", &dipole.child1);
-    //tree->Branch("child2", "Dipole", &dipole.child2);
-
-    Double_t rho = 0.01; // Cut-off
-    Double_t max_y = 1.5; // Maximal rapidity
-    int i = 0;
-
-    Long64_t depth;
-    Long64_t index;
-    Long64_t max_depth;
-
-    // FIXME remove number_occurrences and keep only max_y
-    while (!dipoles.empty())
-    {
-        //std::cerr << dipoles.size() << std::endl;
-        dipole = dipoles.front();
-        dipoles.pop();
-
-        if (dipole.depth < std::numeric_limits<Long64_t>::max())
-        {
-            depth = dipole.depth + 1;
-        }
-        else
-        {
-            std::cerr << "Warning : overflow on depth value" << std::endl;
-            break;
-        }
-
-        if (dipole.index < std::numeric_limits<Long64_t>::max())
-        {
-            index = dipole.index * 2;
-        }
-        else
-        {
-            std::cerr << "Warning : overflow on index value" << std::endl;
-            break;
-        }
-        
-        Dipole dipole1(depth, index), dipole2(depth, index+1);
-        bool success = generate(rho, &dipole, &dipole1, &dipole2, max_y);
-        if (success)
-        {
-            dipoles.push(dipole1);
-            dipoles.push(dipole2);
-        }
-        else
-        {
-            dipole.isLeaf = true;
-        }
-        // FIXME for some reason the raw values differ slightly from the tree scan ! 
-        //std::cerr << dipole1.radius << " " << dipole1.coord.X() << " " << dipole1.coord.Y() <<  std::endl;
-        ++i;
-        max_depth = depth;
-        tree->Fill(); // Stores dipole
-    }
-    --max_depth;// because the last depth is for leaves that we didn't stored
-
-    TVector * v = new TVector(1);
-    //v->SetName("max_depth");
-    v[0] = max_depth;
-    tree->GetUserInfo()->Add(v);
-    //tree->Print();
-    // Print entries
-    //tree->Scan("rapidity:radius:phi:coord.X():coord.Y():depth:index", "depth == 34");
-    //tree->Draw("radius");
-    output->Write();
 }

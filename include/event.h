@@ -4,12 +4,12 @@
 
 class Event
 {
-    Double_t rho;
-    Double_t max_y;
+    Double_t rho; // Cut-off ultraviolet
+    Double_t max_y; // Maximal rapidity
     static constexpr char * filename = "tree.root";
 
     public:
-        Event();
+        Event(Double_t rho, Double_t max_y);
 
         Double_t f(Double_t r);
         Double_t g(Double_t r);
