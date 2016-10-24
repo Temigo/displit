@@ -13,6 +13,8 @@
 #include <TVector.h>
 #include <TString.h>
 #include <TRandom.h>
+#include <TList.h>
+#include <TGraph.h>
 
 /*
 Double_t myFunction(Double_t par)
@@ -25,6 +27,14 @@ void minuitFunction(int& nDim, double* gout, double& result, double par[], int f
     result = myFunction(par[0]);
 }
 */
+/* Nombre moyen de dipôles de taille r partant d'un dipôle 
+ * de taille x01 en allant jusqu'à la rapidité y
+ */
+Double_t n(Double_t r, Double_t x01, Double_t y)
+{
+    // FIXME manque alpha barre : paramètre à ajuster ??
+    return TMath::BesselI0(2 * TMath::Sqrt(y * TMath::Log(x01*x01 / (r*r))));
+}
 
 void general_plot(TApplication * myapp)
 {
@@ -88,6 +98,81 @@ void general_plot(TApplication * myapp)
     myapp->Run();
 }
 
+void stat_events(TApplication * myapp, int nb_events, Double_t max_y)
+{
+    TCanvas c;
+    c.cd(1);
+    gPad->SetLogy();
+    TH1F * hf = new TH1F("hf", "Total", 100, 0, 1);
+    TFile f("tree.root");
+    int N = 500;
+    Double_t r[N], nb[N];
+    Double_t radius = 0.02;
+    Double_t pas = 0.001;
+    for (int i = 0; i < N; ++i)
+    {
+        radius += pas;
+        int number = 0;
+        for (int j = 0; j < nb_events; ++j)
+        {
+            //TFile f("tree_0.root");
+            TTree * tree;
+            f.GetObject(TString::Format("tree%d", j), tree);
+            //tree->Print();
+            tree->Draw(TString::Format("radius>>+h%d", i), TString::Format("isLeaf && radius > %.12g", radius));
+            TH1F *htemp = (TH1F*)gPad->GetPrimitive(TString::Format("h%d", i));
+            //std::cerr << htemp->GetEntries() << std::endl;
+            //std::cerr << htemp->GetMean() << std::endl;
+            number = htemp->GetEntries();
+        }
+        nb[i] = number;
+        r[i] = radius;
+        //std::cerr << radius << " " << number << std::endl;
+    }
+
+    //TH1F * htemp = (TH1F*)gPad->GetPrimitive("h");
+    //std::cerr << htemp->GetEntries() << std::endl;
+    //h->SetDirectory(0);
+    //h->DrawCopy();
+    //TH1F *htemp3 = (TH1F*)gPad->GetPrimitive("h");
+    TF1 * nf = new TF1("nf", "[2] * TMath::BesselI0(2 * sqrt([0] * log([1]*[1] / (x*x))))", 0, 1);
+    nf->FixParameter(0, max_y);
+    nf->FixParameter(1, 1.0); // x01
+
+    c.cd(2);
+    TGraph * n = new TGraph(N, r, nb);
+    n->SetTitle(TString::Format("#splitline{Average number of dipoles starting with a size x01=%.12g}{until rapidity %.12g with a size over r}", 1.0, max_y));
+    n->Draw("A*");
+        //n->GetXaxis()->SetRangeUser(0.,0.12);
+        //n->GetYaxis()->SetRangeUser(-0.8, 0.8);    
+    n->Draw("A*");
+    c.Update();
+    n->Fit("nf");
+
+    myapp->Run();
+}
+
+void draw_tree(TApplication * myapp, TTree * tree)
+{
+    //gPad->GetCanvas()->Divide(1,2);
+    //gPad->GetCanvas()->cd(2);
+    tree->Draw("rapidity:coord.X()", "coord.X() > -0.1 && coord.X() < 0.1");
+    myapp->Run();
+}
+
+void generate_events(int nb_events, Double_t rho, Double_t max_y)
+{
+    TFile * output = new TFile("tree.root", "recreate");
+    std::cerr << "Rho = " << rho << " ; Maximum rapidity = " << max_y << std::endl;
+    for (int j = 0; j < nb_events; ++j)
+    {
+        Event * e = new Event(rho, max_y);
+        TTree * tree = e->make_tree("tree.root", TString::Format("tree%d", j), false);
+    }        
+    output->Write();
+    std::cerr << "Generated and saved " << nb_events << " events in tree.root." << std::endl;
+}
+
 int main( int argc, const char* argv[] )
 {
     TApplication * myapp = new TApplication("myapp", 0, 0);
@@ -97,6 +182,10 @@ int main( int argc, const char* argv[] )
 
     std::istringstream iss( argv[1] );
     int val = 0; // By default only read file
+    int nb_events = 1; // Number of events to read/generate
+    Double_t rho = 0.01;
+    Double_t max_y = 1.6;
+
     if (!(iss >> val))
     {
         std::cerr << "Not valid argument." << std::endl;
@@ -104,12 +193,8 @@ int main( int argc, const char* argv[] )
 
     if (val)
     {
-        Event * e = new Event(0.01, 1.5);
-        e->make_tree("tree.root");
+        generate_events(nb_events);
     }
-
-    //draw_tree(tree);
-    //tree->Draw("radius");
 
     /*TMinuit minuit(1); // Instantiate Minuit for 3 parameters
     // Or use TFitter ?
@@ -125,6 +210,12 @@ int main( int argc, const char* argv[] )
     Double_t bestX = minuit->GetParameter(0);*/
 
     //general_plot(myapp);
+    //stat_events(myapp, nb_events, max_y);
+    TFile f("tree.root");
+    TTree * tree;
+    f.GetObject("tree0", tree);    
+    tree->Draw("coord.Y():coord.X()", "isLeaf");
+    //draw_tree(myapp, tree);
     myapp->Run();
 
     return 0;

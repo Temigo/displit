@@ -232,7 +232,7 @@ bool Event::generate(Double_t rho, Dipole * dipole, Dipole * dipole1, Dipole * d
     return true;
 }
 
-void Event::make_tree(const char * filename)
+TTree * Event::make_tree(const char * filename, const char * treename, bool draw)
 {
     gRandom->SetSeed(); // /!\ IMPORTANT or we always get the same values
     Dipole dipole(0,0);
@@ -240,8 +240,7 @@ void Event::make_tree(const char * filename)
     std::queue<Dipole> dipoles;
     dipoles.push(dipole);
 
-    TFile * output = new TFile(filename, "recreate");
-    TTree * tree = new TTree("T", "Gluons generated");
+    TTree * tree = new TTree(treename, "Dipole splitting");
     tree->Branch("rapidity", &dipole.rapidity, "rapidity/D");
     tree->Branch("radius", &dipole.radius, "radius/D");
     tree->Branch("phi", &dipole.phi, "phi/D");
@@ -256,7 +255,11 @@ void Event::make_tree(const char * filename)
     Long64_t max_depth;
 
     TCanvas * C = new TCanvas("C", "C", 0, 0, 3000, 2000);
-    gPad->DrawFrame(-1.0, -1, 2.0, 1.0, TString::Format("#splitline{Dipole splitting - rho = %.12g}{rapidity maximum = %.12g}", rho, max_y));
+    C->cd(1);
+    if (draw)
+    {  
+        gPad->DrawFrame(-1.0, -1, 2.0, 1.0, TString::Format("#splitline{Dipole splitting - rho = %.12g}{rapidity maximum = %.12g}", rho, max_y));        
+    }
 
     while (!dipoles.empty())
     {
@@ -295,7 +298,7 @@ void Event::make_tree(const char * filename)
             dipole.isLeaf = true;
         }
 
-        if (dipole.isLeaf)
+        if (draw && dipole.isLeaf)
         {
             dipole.Draw();
         }
@@ -306,8 +309,9 @@ void Event::make_tree(const char * filename)
         max_depth = depth;
         tree->Fill(); // Stores dipole
     }
-    C->Update();
+    if (draw) C->Update();
 
+    std::cerr << i << " dipôles générés" << std::endl;
     --max_depth;// because the last depth is for leaves that we didn't stored
 
     TVector * v = new TVector(1);
@@ -318,7 +322,8 @@ void Event::make_tree(const char * filename)
     // Print entries
     //tree->Scan("rapidity:radius:phi:coord.X():coord.Y():depth:index", "depth == 34");
     //tree->Draw("radius");
-    output->Write();
+    //output->Write();
+    return tree;
 }
 
 /********************************************* NORMALIZED + FIT *************************/

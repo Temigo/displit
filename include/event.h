@@ -29,5 +29,5 @@ class Event
         void fit_y();
         void fit_x();
         
-        void make_tree(const char * filename = filename);
+        TTree * make_tree(const char * filename = filename, const char * treename = "T", bool draw = false);
 };
