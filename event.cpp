@@ -29,6 +29,11 @@ Event::Event(Double_t rho, Double_t max_y) :
     max_y(max_y)
 {}
 
+/*Event::Event(TTree * tree)
+{
+
+}*/
+
 Double_t Event::f(Double_t r)
 {
     if (r <= 1. / 2. )
@@ -235,7 +240,7 @@ bool Event::generate(Double_t rho, Dipole * dipole, Dipole * dipole1, Dipole * d
 TTree * Event::make_tree(const char * filename, const char * treename, bool draw)
 {
     gRandom->SetSeed(); // /!\ IMPORTANT or we always get the same values
-    Dipole dipole(0,0);
+    Dipole dipole(0,0,0);
 
     std::queue<Dipole> dipoles;
     dipoles.push(dipole);
@@ -246,7 +251,7 @@ TTree * Event::make_tree(const char * filename, const char * treename, bool draw
     tree->Branch("phi", &dipole.phi, "phi/D");
     tree->Branch("coord", "TVector2", &dipole.coord);
     tree->Branch("depth", &dipole.depth, "depth/L");
-    tree->Branch("index", &dipole.index, "index/L");
+    tree->Branch("index_children", &dipole.index_children, "index_children/L");
     tree->Branch("isLeaf", &dipole.isLeaf, "isLeaf/O");
 
     int i = 0;
@@ -261,37 +266,52 @@ TTree * Event::make_tree(const char * filename, const char * treename, bool draw
         gPad->DrawFrame(-1.0, -1, 2.0, 1.0, TString::Format("#splitline{Dipole splitting - rho = %.12g}{rapidity maximum = %.12g}", rho, max_y));        
     }
 
+    Long64_t current_depth = 0;
+    Long64_t current_depth_dipoles = 1; // Number of dipoles at current depth
+    Long64_t current_depth_dipoles_split = 0;
+
+    // Tree is filled in a Breadth first search (BFS) order
     while (!dipoles.empty())
     {
         dipole = dipoles.front();
         dipoles.pop();
 
-        if (dipole.depth < std::numeric_limits<Long64_t>::max())
+        // Determine current depth
+        if (dipole.depth > current_depth) // Beginning to fill a new level
         {
-            depth = dipole.depth + 1;
+            current_depth = dipole.depth; 
+            // Constant throughout the current depth
+            current_depth_dipoles = 2 * current_depth_dipoles_split;
+            // Incremented throughout the current depth
+            current_depth_dipoles_split = 0;
+            index = 0;
         }
-        else
+        else // Increment index of the dipole in current depth
         {
-            std::cerr << "Warning : overflow on depth value" << std::endl;
-            break;
-        }
-
-        if (dipole.index < std::numeric_limits<Long64_t>::max())
-        {
-            index = dipole.index * 2;
-        }
-        else
-        {
-            std::cerr << "Warning : overflow on index value" << std::endl;
-            break;
+            if (index < std::numeric_limits<Long64_t>::max())
+            {
+                ++index;
+            }
+            else
+            {
+                std::cerr << "Warning : overflow on index value" << std::endl;
+                break;
+            }
         }
         
-        Dipole dipole1(depth, index), dipole2(depth, index+1);
+        dipole.nb_left_brothers_split = current_depth_dipoles_split;
+        dipole.nb_right_brothers = current_depth_dipoles - index - 1;
+
+        Long64_t children_index = dipole.index + dipole.nb_right_brothers + 2 * dipole.nb_left_brothers_split;
+        Dipole dipole1(dipole.depth + 1, children_index, dipole.index), 
+               dipole2(dipole.depth + 1, children_index + 1, dipole.index);
         bool success = generate(rho, &dipole, &dipole1, &dipole2, max_y);
         if (success)
         {
             dipoles.push(dipole1);
             dipoles.push(dipole2);
+            current_depth_dipoles_split += 1;    
+            dipole.index_children = children_index;
         }
         else
         {
@@ -307,7 +327,7 @@ TTree * Event::make_tree(const char * filename, const char * treename, bool draw
         //std::cerr << dipole1.radius << " " << dipole1.coord.X() << " " << dipole1.coord.Y() <<  std::endl;
         ++i;
         max_depth = depth;
-        tree->Fill(); // Stores dipole
+        tree->Fill(); // Stores dipole (parent)
     }
     if (draw) C->Update();
 

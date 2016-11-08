@@ -4,7 +4,7 @@
 #include <TMath.h>
 #include <TArrow.h>
 
-Dipole::Dipole(Long64_t depth, Long64_t index) : 
+Dipole::Dipole(Long64_t depth, Long64_t index, Long64_t index_parent) : 
     coord(0.5, 0.0), 
     phi(0.0), 
     rapidity(0.0), 
@@ -14,6 +14,10 @@ Dipole::Dipole(Long64_t depth, Long64_t index) :
     child2(nullptr) */
     depth(depth),
     index(index),
+    index_parent(index_parent),
+    index_children(0),
+    nb_left_brothers_split(0),
+    nb_right_brothers(0),
     isLeaf(false)
 {}
 

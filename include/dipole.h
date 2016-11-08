@@ -16,10 +16,15 @@ class Dipole {
         // Long64_t : from 0 to 2^64-1
         Long64_t depth;
         Long64_t index;
+        Long64_t index_parent;
+        Long64_t index_children;
+        
+        Long64_t nb_left_brothers_split;
+        Long64_t nb_right_brothers;
 
         Bool_t isLeaf;
 
-        Dipole(Long64_t depth, Long64_t index);
+        Dipole(Long64_t depth, Long64_t index, Long64_t index_parent);
         Long64_t GetParentDepth();
         Long64_t GetParentIndex();
         void Draw();
