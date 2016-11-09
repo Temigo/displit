@@ -240,7 +240,7 @@ bool Event::generate(Double_t rho, Dipole * dipole, Dipole * dipole1, Dipole * d
 TTree * Event::make_tree(const char * filename, const char * treename, bool draw)
 {
     gRandom->SetSeed(); // /!\ IMPORTANT or we always get the same values
-    Dipole dipole(0,0,0);
+    Dipole dipole(0,0);
 
     std::queue<Dipole> dipoles;
     dipoles.push(dipole);
@@ -252,11 +252,11 @@ TTree * Event::make_tree(const char * filename, const char * treename, bool draw
     tree->Branch("coord", "TVector2", &dipole.coord);
     tree->Branch("depth", &dipole.depth, "depth/L");
     tree->Branch("index_children", &dipole.index_children, "index_children/L");
+    tree->Branch("index_parent", &dipole.index_parent, "index_parent/L");
     tree->Branch("isLeaf", &dipole.isLeaf, "isLeaf/O");
 
     int i = 0;
-    Long64_t depth;
-    Long64_t index;
+    Long64_t index = -1; // index of the dipole at current depth
     Long64_t max_depth;
 
     TCanvas * C = new TCanvas("C", "C", 0, 0, 3000, 2000);
@@ -290,7 +290,7 @@ TTree * Event::make_tree(const char * filename, const char * treename, bool draw
         {
             if (index < std::numeric_limits<Long64_t>::max())
             {
-                ++index;
+                index += 1;
             }
             else
             {
@@ -298,16 +298,20 @@ TTree * Event::make_tree(const char * filename, const char * treename, bool draw
                 break;
             }
         }
-        
+        dipole.index = i;
         dipole.nb_left_brothers_split = current_depth_dipoles_split;
         dipole.nb_right_brothers = current_depth_dipoles - index - 1;
 
-        Long64_t children_index = dipole.index + dipole.nb_right_brothers + 2 * dipole.nb_left_brothers_split;
-        Dipole dipole1(dipole.depth + 1, children_index, dipole.index), 
-               dipole2(dipole.depth + 1, children_index + 1, dipole.index);
+        Long64_t children_index = dipole.index + dipole.nb_right_brothers + 2 * dipole.nb_left_brothers_split + 1;
+        //std::cerr << dipole.index << " " << dipole.nb_left_brothers_split << " " << dipole.nb_right_brothers << " " << children_index << std::endl;
+        
+        Dipole dipole1(dipole.depth + 1, children_index), 
+               dipole2(dipole.depth + 1, children_index + 1);
         bool success = generate(rho, &dipole, &dipole1, &dipole2, max_y);
         if (success)
         {
+            dipole1.index_parent = dipole.index;
+            dipole2.index_parent = dipole.index;
             dipoles.push(dipole1);
             dipoles.push(dipole2);
             current_depth_dipoles_split += 1;    
@@ -326,7 +330,7 @@ TTree * Event::make_tree(const char * filename, const char * treename, bool draw
         // FIXME for some reason the raw values differ slightly from the tree scan ! 
         //std::cerr << dipole1.radius << " " << dipole1.coord.X() << " " << dipole1.coord.Y() <<  std::endl;
         ++i;
-        max_depth = depth;
+        //max_depth = depth;
         tree->Fill(); // Stores dipole (parent)
     }
     if (draw) C->Update();
@@ -340,7 +344,7 @@ TTree * Event::make_tree(const char * filename, const char * treename, bool draw
     tree->GetUserInfo()->Add(v);
     //tree->Print();
     // Print entries
-    //tree->Scan("rapidity:radius:phi:coord.X():coord.Y():depth:index", "depth == 34");
+    //tree->Scan("rapidity:radius:phi:coord.X():coord.Y():depth:index_children:index_parent");
     //tree->Draw("radius");
     //output->Write();
     return tree;

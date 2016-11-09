@@ -24,7 +24,7 @@ class Dipole {
 
         Bool_t isLeaf;
 
-        Dipole(Long64_t depth, Long64_t index, Long64_t index_parent);
+        Dipole(Long64_t depth, Long64_t index);
         Long64_t GetParentDepth();
         Long64_t GetParentIndex();
         void Draw();

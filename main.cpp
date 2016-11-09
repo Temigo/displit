@@ -1,6 +1,6 @@
 #include "main.h"
 #include "event.h"
-#include "MyClass.h"
+#include "EventTree.h"
 
 #include <TApplication.h>
 #include <TFile.h>
@@ -153,6 +153,9 @@ void general_plot(TApplication * myapp)
     myapp->Run();
 }
 
+/* Compute and fit average number of dipoles with size >= r, x01 and max_y
+ * (fit with Bessel function)
+ */
 void stat_events(TApplication * myapp, int nb_events, Double_t max_y)
 {
     TCanvas c;
@@ -188,20 +191,17 @@ void stat_events(TApplication * myapp, int nb_events, Double_t max_y)
     // TH1::AddDirectory(kFALSE);   sets a global switch disabling the reference
     htemp->SetDirectory(0);
     TH1F * htemp_cum = (TH1F*) htemp->GetCumulative(false);
-    //Axis_t * new_bins = BinLogX2(htemp_cum, 200);
-    //TH1F * htemp_cum2 = (TH1F*) BinLogX2(htemp_cum);
-    //htemp->Draw();
-    //htemp->Rebin(100, "hnew", new_bins)->Draw("same");
-    //TH1F * htemp_cum_rebin = (TH1F*) htemp_cum->Rebin(200, "hnew", new_bins);
-    //htemp_cum->Draw("same");
     htemp_cum->Draw("same");
+    htemp_cum->SetTitle(TString::Format("#splitline{Average number of dipoles of radius >= r over %d events}{with x01=%.12g and y_max=%.12g}", nb_events, 1.0, max_y));
 
-    TF1 * nf = new TF1("nf", "[2] * TMath::BesselI0(2 * sqrt([0] * log([1]*[1] / (x*x))))", 0.1, 0.8);
+    TF1 * nf = new TF1("nf", "[2] * TMath::BesselI0(2 * sqrt([0] * log([1]*[1] / (x*x))))", 0.05, 0.5);
     nf->FixParameter(0, max_y);
     nf->FixParameter(1, 1.0); // x01
 
     htemp_cum->Fit("nf", "R");
 
+    // Log binning on x axis : not accurate because new_bins doesn't overlap old bins
+    // See comment over BinLogX2
     c.cd(2);
     gPad->SetLogy();
     gPad->SetLogx();
@@ -212,27 +212,17 @@ void stat_events(TApplication * myapp, int nb_events, Double_t max_y)
     c.SetTitle(TString::Format("Chi2 : %.12g", nf->GetChisquare()));
     c.Update();
 
-    /*c.cd(2);
-    TGraph * n = new TGraph(N, r, nb);
-    n->SetTitle(TString::Format("#splitline{Average number of dipoles starting with a size x01=%.12g}{until rapidity %.12g with a size over r}", 1.0, max_y));
-    n->Draw("A*");
-        //n->GetXaxis()->SetRangeUser(0.,0.12);
-        //n->GetYaxis()->SetRangeUser(-0.8, 0.8);    
-    n->Draw("A*");
-    c.Update();
-    n->Fit("nf");*/
-
     myapp->Run();
 }
 
+// Interesting view !
 void draw_tree(TApplication * myapp, TTree * tree)
 {
-    //gPad->GetCanvas()->Divide(1,2);
-    //gPad->GetCanvas()->cd(2);
     tree->Draw("rapidity:coord.X()", "coord.X() > -0.1 && coord.X() < 0.1");
     myapp->Run();
 }
 
+// Generate *nb_events* events with same parameters rho and max_y
 void generate_events(int nb_events, Double_t rho, Double_t max_y)
 {
     TFile * output = new TFile("tree.root", "recreate");
@@ -254,7 +244,7 @@ void compute_biggest_child(TTree * tree, TApplication * myapp)
     //treeFriend->BuildIndex("radius", "isLeaf");
 
     Double_t max_children_radius, max_children_radius2;
-    MyClass * t = new MyClass(treeFriend);
+    EventTree * t = new EventTree(treeFriend);
 
     TBranch * biggestChildSize = treeFriend->Branch("max_children_radius_inv", &max_children_radius, "max_children_radius_inv/D");
     TBranch * biggestChildSize2 = treeFriend->Branch("max_children_radius", &max_children_radius2, "max_children_radius/D");
@@ -272,12 +262,12 @@ void compute_biggest_child(TTree * tree, TApplication * myapp)
         else
         {
             max_children_radius = t->radius;
-            /*Long64_t index_children = t->index_children;
+            Long64_t index_children = t->index_children;
             // FIXME binary tree is not complete => formula not exact
             t->GetEntry(index_children);
             max_children_radius = TMath::Max(max_children_radius, t->radius);
             t->GetEntry(index_children+1);
-            max_children_radius = TMath::Max(max_children_radius, t->radius);*/
+            max_children_radius = TMath::Max(max_children_radius, t->radius);
             if (max_children_radius < 0.)
             {
                 std::cerr << i << " Negative" << std::endl;
@@ -300,7 +290,7 @@ void compute_biggest_child(TTree * tree, TApplication * myapp)
 
     tree->AddFriend(treeFriend);
     //tree->StartViewer();
-    /*TCanvas C;
+    TCanvas C;
     gPad->SetLogz();
     //tree->Draw("radius:treeFriend.max_children_radius", "radius < 0.2 && treeFriend.max_children_radius < 0.2");
     tree->Draw("radius:treeFriend.max_children_radius>>hmax", "radius<0.1 && treeFriend.max_children_radius < 0.1", "colz");
@@ -310,7 +300,7 @@ void compute_biggest_child(TTree * tree, TApplication * myapp)
     //htemp->Draw("box");
     //htemp->DrawPanel();
     //htemp->FitPanel();
-    htemp->Print();*/
+    htemp->Print();
 
     //C.Draw();
     //C.Update();
@@ -328,9 +318,9 @@ int main( int argc, const char* argv[] )
 
     std::istringstream iss( argv[1] );
     int val = 0; // By default only read file
-    int nb_events = 10; // Number of events to read/generate
+    int nb_events = 1; // Number of events to read/generate
     Double_t rho = 0.01;
-    Double_t max_y = 1.5;
+    Double_t max_y = 1.0;
 
     /*int nthreads = 4;
     ROOT::EnableImplicitMT(nthreads);
@@ -359,13 +349,16 @@ int main( int argc, const char* argv[] )
     minuit->ExecuteCommand("SIMPLEX", 0, 0);
     Double_t bestX = minuit->GetParameter(0);*/
 
+    // General fit
     //general_plot(myapp);
-    stat_events(myapp, nb_events, max_y);
+    //stat_events(myapp, nb_events, max_y);
 
-    /*TFile f("tree.root");
+    // Compute biggest children
+    TFile f("tree.root");
     TTree * tree;
     f.GetObject("tree0", tree); 
-    compute_biggest_child(tree, myapp); */
+    //tree->MakeClass("EventTree");
+    compute_biggest_child(tree, myapp);
 
     //TCanvas C;
     //gPad->SetLogy();
