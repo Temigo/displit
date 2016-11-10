@@ -75,7 +75,23 @@ Axis_t * BinLogX2(TH1 *h, int bins)
 
     for (int i = 0; i <= nbins; i++) {
         new_bins[i] = TMath::Power(10, from + i * width);
-        // std::cerr << new_bins[i] << std::endl;
+        std::cerr << new_bins[i] << std::endl;
+    }
+    axis->Set(bins, new_bins);
+    return new_bins;
+    //return h->Rebin(bins, "hnew", new_bins);
+}
+
+Axis_t * BinLogX3(int nbins)
+{
+    Axis_t from = -5.0;
+    Axis_t to = 0.0;
+    Axis_t width = (to - from) / nbins;
+    Axis_t *new_bins = new Axis_t[nbins + 1];
+
+    for (int i = 0; i <= nbins; i++) {
+        new_bins[i] = TMath::Power(10, from + i * width);
+        std::cerr << new_bins[i] << std::endl;
     }
     //axis->Set(bins, new_bins);
     return new_bins;
@@ -153,18 +169,63 @@ void general_plot(TApplication * myapp)
     myapp->Run();
 }
 
+void fluctuations(TApplication * myapp, int nb_events, Double_t max_y, Double_t x01, Double_t rho)
+{
+    Double_t r = 0.5;
+    bool logX = true;
+
+    TCanvas c;
+
+    c.cd(1);
+    if (logX) gPad->SetLogx();
+    gPad->SetLogy();
+    TH1F * hfluct = new TH1F("hfluct", TString::Format("#splitline{Fluctuations over %d events}{with y_max = %.12g, r = %.12g and rho = %.12g}", nb_events, max_y, r, rho), 100, 0, 100);
+    hfluct->GetXaxis()->SetTitle("Number of events n(r, x01, y_max)");
+    hfluct->GetYaxis()->SetTitle("p_n(r, x01, y)");
+    if (logX) BinLogX2(hfluct, 100);
+
+    TFile f("tree.root");
+
+    for (int j = 0; j < nb_events; ++j)
+    {
+        TTree * tree;
+        f.GetObject(TString::Format("tree%d", j), tree);
+        //tree->Print();
+        std::cerr << j << std::endl;
+        int n = tree->Draw("radius", TString::Format("isLeaf && radius >= %.12g", r), "goff");
+        hfluct->Fill(n);
+    }
+    if (logX) hfluct->Sumw2();
+    if (logX) hfluct->Scale(1, "width");
+    hfluct->Draw();
+
+
+
+    TF1 * pn = new TF1("pn", "[0] / x * [1] * [1] / ([2] * [2]) * exp(- log(x)*log(x)/(4*[3]))", 3, 50);
+    pn->FixParameter(1, x01);
+    pn->FixParameter(2, r);
+    pn->FixParameter(3, max_y);
+    hfluct->Fit("pn", "IR");
+
+    c.SetTitle(TString::Format("Chi2 : %.12g", pn->GetChisquare()));
+    c.Update();
+
+    myapp->Run();
+}
+
 /* Compute and fit average number of dipoles with size >= r, x01 and max_y
  * (fit with Bessel function)
  */
-void stat_events(TApplication * myapp, int nb_events, Double_t max_y)
+void stat_events(TApplication * myapp, int nb_events, Double_t max_y, Double_t x01)
 {
     TCanvas c;
-    c.Divide(2,1,0.05,0.05);
+    //c.Divide(2,1,0.05,0.05);
     c.cd(1);
     gPad->SetLogy();
 
-    //TH1F * hf = new TH1F("hf0", "Total", 200, 0, 1);
-    //Axis_t * new_bins = BinLogX2(hf, 200);
+    //TH1F * hf0 = new TH1F("hf0", "Total", 200, 0, 1);
+    //Axis_t * new_bins = BinLogX3(100);
+    //TH1F * hf = new TH1F("hf", "Total 2", 100, new_bins);
     //hf->Rebin(200, "hf", new_bins);
 
     TFile f("tree.root");
@@ -191,23 +252,34 @@ void stat_events(TApplication * myapp, int nb_events, Double_t max_y)
     // TH1::AddDirectory(kFALSE);   sets a global switch disabling the reference
     htemp->SetDirectory(0);
     TH1F * htemp_cum = (TH1F*) htemp->GetCumulative(false);
-    htemp_cum->Draw("same");
+    htemp_cum->Draw(); // E1 for error bars
     htemp_cum->SetTitle(TString::Format("#splitline{Average number of dipoles of radius >= r over %d events}{with x01=%.12g and y_max=%.12g}", nb_events, 1.0, max_y));
 
-    TF1 * nf = new TF1("nf", "[2] * TMath::BesselI0(2 * sqrt([0] * log([1]*[1] / (x*x))))", 0.05, 0.5);
+    // First limit : rho >> y_max
+    Double_t max_r = x01 / 10. * TMath::Exp(max_y / 2.);
+    std::cerr << max_r << std::endl;
+    TF1 * nf = new TF1("nf", "[2] * TMath::BesselI0(2. * sqrt([0] * log([1]*[1] / (x*x))))", 0.01, max_r);
     nf->FixParameter(0, max_y);
-    nf->FixParameter(1, 1.0); // x01
+    nf->FixParameter(1, x01);
 
     htemp_cum->Fit("nf", "R");
 
+    Double_t min_r = x01 / 2. * TMath::Exp(max_y / 2.);
+    std::cerr << min_r << std::endl;
+    TF1 * nf2 = new TF1("nf2", "[0] * [1] * [1] / (x*x) * exp(2. * sqrt([2] * log([1] * [1] / (x * x))))", 1.0, 1.5);
+    nf2->FixParameter(1, x01);
+    nf2->FixParameter(2, max_y);
+    //htemp_cum->Fit("nf2", "R+");
+
+    // Second limit : rho 
     // Log binning on x axis : not accurate because new_bins doesn't overlap old bins
     // See comment over BinLogX2
-    c.cd(2);
+    /*c.cd(2);
     gPad->SetLogy();
     gPad->SetLogx();
     Axis_t * new_bins = BinLogX2(htemp_cum, 100);
     TH1F * htemp_cum_rebin = (TH1F*) htemp_cum->Rebin(100, "hnew", new_bins);
-    htemp_cum_rebin->Draw();
+    htemp_cum_rebin->Draw();*/
 
     c.SetTitle(TString::Format("Chi2 : %.12g", nf->GetChisquare()));
     c.Update();
@@ -234,6 +306,49 @@ void generate_events(int nb_events, Double_t rho, Double_t max_y)
     }        
     output->Write();
     std::cerr << "Generated and saved " << nb_events << " events in tree.root." << std::endl;
+}
+
+// Find common ancestor of two dipoles given their index in TTree
+Long64_t GetCommonAncestors(TTree * tree, Long64_t i1, Long64_t i2)
+{
+    Long64_t nentries = tree->GetEntries();
+    EventTree * t = new EventTree(tree);
+
+    // Get depths
+    t->GetEntry(i1);
+    Long64_t depth1 = t->depth;
+    t->GetEntry(i2);
+    Long64_t depth2 = t->depth;
+
+    // Assumption : depth(i3) >= depth(i4)
+    Long64_t i3 = i2; // if depth1 <= depth2
+    Long64_t i4 = i1;
+    if (depth1 > depth2)
+    {
+        i3 = i1;
+        i4 = i2;
+    }
+
+    // Put i3 and i4 at same depth
+    if (depth1 != depth2)
+    {
+        for (int k = 0; k < depth2 - depth1; ++k)
+        {
+            t->GetEntry(i3);
+            i3 = t->index_parent;
+        }
+    }
+
+    Long64_t p1 = i4;
+    Long64_t p2 = i3;
+    while(p1 != p2)
+    {
+        t->GetEntry(p1);
+        p1 = t->index_parent;
+        t->GetEntry(p2);
+        p2 = t->index_parent;
+    }
+    return p1;    
 }
 
 void compute_biggest_child(TTree * tree, TApplication * myapp)
@@ -318,7 +433,7 @@ int main( int argc, const char* argv[] )
 
     std::istringstream iss( argv[1] );
     int val = 0; // By default only read file
-    int nb_events = 1; // Number of events to read/generate
+    int nb_events = 10000; // Number of events to read/generate
     Double_t rho = 0.01;
     Double_t max_y = 1.0;
 
@@ -351,19 +466,16 @@ int main( int argc, const char* argv[] )
 
     // General fit
     //general_plot(myapp);
-    //stat_events(myapp, nb_events, max_y);
+    //stat_events(myapp, nb_events, max_y, 1.0);
+    fluctuations(myapp, nb_events, max_y, 1.0, rho);
 
     // Compute biggest children
-    TFile f("tree.root");
+    /*TFile f("tree.root");
     TTree * tree;
     f.GetObject("tree0", tree); 
     //tree->MakeClass("EventTree");
-    compute_biggest_child(tree, myapp);
+    compute_biggest_child(tree, myapp);*/
 
-    //TCanvas C;
-    //gPad->SetLogy();
-    //tree->Draw("coord.X()", "isLeaf && coord.X() > -2. && coord.X() < 0");
-    //draw_tree(myapp, tree);
     //myapp->Run();
 
     return 0;
