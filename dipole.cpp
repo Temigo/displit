@@ -14,7 +14,7 @@ Dipole::Dipole(Long64_t depth, Long64_t index) :
     child2(nullptr) */
     depth(depth),
     index(index),
-    index_parent(-1),
+    index_parent(0),
     index_children(-1),
     nb_left_brothers_split(0),
     nb_right_brothers(0),

@@ -19,6 +19,7 @@
 #include <TGraph.h>
 #include <TThread.h>
 #include <TROOT.h>
+#include <TEntryList.h>
 
 /*
 Double_t myFunction(Double_t par)
@@ -169,6 +170,10 @@ void general_plot(TApplication * myapp)
     myapp->Run();
 }
 
+/* Compute fluctuations p_n
+* = probability to have n dipoles of size >= r from a dipole of size x01 until
+* rapidity y_max
+*/
 void fluctuations(TApplication * myapp, int nb_events, Double_t max_y, Double_t x01, Double_t rho)
 {
     Double_t r = 0.5;
@@ -199,8 +204,6 @@ void fluctuations(TApplication * myapp, int nb_events, Double_t max_y, Double_t 
     if (logX) hfluct->Scale(1, "width");
     hfluct->Draw();
 
-
-
     TF1 * pn = new TF1("pn", "[0] / x * [1] * [1] / ([2] * [2]) * exp(- log(x)*log(x)/(4*[3]))", 3, 50);
     pn->FixParameter(1, x01);
     pn->FixParameter(2, r);
@@ -212,6 +215,7 @@ void fluctuations(TApplication * myapp, int nb_events, Double_t max_y, Double_t 
 
     myapp->Run();
 }
+
 
 /* Compute and fit average number of dipoles with size >= r, x01 and max_y
  * (fit with Bessel function)
@@ -343,12 +347,84 @@ Long64_t GetCommonAncestors(TTree * tree, Long64_t i1, Long64_t i2)
     Long64_t p2 = i3;
     while(p1 != p2)
     {
+        //std::cerr << p1 << " " << p2 << std::endl;
         t->GetEntry(p1);
         p1 = t->index_parent;
         t->GetEntry(p2);
         p2 = t->index_parent;
     }
     return p1;    
+}
+
+void RandomSelectkLeaves(TTree * tree, Long64_t indexes[], int k)
+{
+    //EventTree * t = new EventTree(tree);
+    Long64_t nleaves = tree->GetEntries("isLeaf");
+    //Long64_t nentries = tree->GetEntries();
+    //std::cerr << nleaves << " leaves" << std::endl;
+
+    //tree->Scan("depth:index_children:index_parent");
+    tree->Draw(">>leaves", "isLeaf", "entrylist");
+    TEntryList * elist = (TEntryList *) gDirectory->Get("leaves");
+    for (Long64_t j = 0; j < k; ++j)
+    {
+        bool new_leaf = false;
+        Long64_t i;
+        while(!new_leaf)
+        {
+            new_leaf = true;
+            i = gRandom->Integer(nleaves);
+            // Check whether we already picked this index
+            for (int l = 0; l < j; ++l)
+            {
+                if (indexes[l] == i) new_leaf = false;
+            }
+        }
+        indexes[j] = elist->GetEntry(i);
+    }
+}
+
+void CommonAncestorPlot(TApplication * myapp, int nb_events, Double_t max_y, Double_t x01, Double_t rho)
+{
+    TCanvas c;
+    c.cd(1);
+    gPad->SetLogy();
+
+    TH1F * hist = new TH1F("hancestor", TString::Format("#splitline{Common ancestor over %d events}{with y_max = %.12g and rho = %.12g}", nb_events, max_y, rho), 100, 0, max_y);
+    hist->GetXaxis()->SetTitle("Rapidity");
+    hist->GetYaxis()->SetTitle("Number of common ancestors");
+
+    TFile f("tree.root");
+    Long64_t indexes[2];
+
+    for (int j = 0; j < nb_events; ++j)
+    {
+        TTree * tree;
+        f.GetObject(TString::Format("tree%d", j), tree);
+        //tree->Print();
+        RandomSelectkLeaves(tree, indexes, 2);
+
+        //std::cerr << indexes[0] << " " << indexes[1] << std::endl;
+        Long64_t a = GetCommonAncestors(tree, indexes[0], indexes[1]);
+        if (a < 0) a = 0;
+        //std::cerr << a << std::endl;
+
+        // Get rapidity of common ancestor
+        EventTree * t = new EventTree(tree);
+        t->GetEntry(a);
+        hist->Fill(t->rapidity);
+
+        //tree->GetHistogram()->Print();
+        //std::cerr << tree->GetHistogram()->GetXaxis()->GetNbins() << std::endl;
+        //tree->GetHistogram()->SetDirectory(0);
+        //std::cerr << hf->GetEntries() << std::endl;
+        //std::cerr << htemp->GetMean() << std::endl;
+        //number = htemp->GetEntries();
+    }
+
+    hist->Draw();
+
+    myapp->Run();
 }
 
 void compute_biggest_child(TTree * tree, TApplication * myapp)
@@ -433,7 +509,7 @@ int main( int argc, const char* argv[] )
 
     std::istringstream iss( argv[1] );
     int val = 0; // By default only read file
-    int nb_events = 10000; // Number of events to read/generate
+    int nb_events = 1000; // Number of events to read/generate
     Double_t rho = 0.01;
     Double_t max_y = 1.0;
 
@@ -467,7 +543,8 @@ int main( int argc, const char* argv[] )
     // General fit
     //general_plot(myapp);
     //stat_events(myapp, nb_events, max_y, 1.0);
-    fluctuations(myapp, nb_events, max_y, 1.0, rho);
+    CommonAncestorPlot(myapp, nb_events, max_y, 1.0, rho);
+    //fluctuations(myapp, nb_events, max_y, 1.0, rho);
 
     // Compute biggest children
     /*TFile f("tree.root");
