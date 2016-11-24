@@ -18,6 +18,10 @@ add_library(event event.cpp)
 target_link_libraries(event ${ROOT_LIBRARIES} dipole)
 target_include_directories(event PUBLIC include/ )
 
+add_library(utils utils.cpp)
+target_link_libraries(utils ${ROOT_LIBRARIES} event EventTree)
+target_include_directories(utils PUBLIC include/ )
+
 add_executable(main main.cpp)
-target_link_libraries(main ${ROOT_LIBRARIES} event EventTree)
+target_link_libraries(main ${ROOT_LIBRARIES} utils)
 target_include_directories(main PUBLIC include/ )
