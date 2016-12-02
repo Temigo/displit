@@ -1,6 +1,8 @@
 #include "dipole.h"
 
 #include <TTree.h>
+#include <map>
+#include <Math/Interpolator.h>
 
 class Event
 {
@@ -8,6 +10,11 @@ class Event
     Double_t max_y; // Maximal rapidity
     TTree * tree;
     static constexpr char * filename = "tree.root";
+
+    // Lookup table
+    ROOT::Math::Interpolator interpolator;
+    std::map<Double_t, Double_t> lookup_table;
+    Double_t x01_min, x01_max;
 
     public:
         Event(Double_t rho, Double_t max_y);
@@ -18,8 +25,13 @@ class Event
         Double_t r_generate(Double_t rho);
         Double_t phi(Double_t r);
         Double_t theta(Double_t r);
-        Double_t lambda(Double_t rho);
-        Double_t y_generate(Double_t rho);
+        Double_t lambda(Double_t x01);
+        Double_t getLambda(Double_t x01);
+        void WriteLookupTable(const char * filename);
+        void LoadLookupTable(const char * filename);
+        void PrintLookupTable();
+        void SetInterpolatorData();
+        Double_t y_generate(Double_t x01);
 
         void draw(Double_t x, Double_t y, Double_t rapidity);
         void draw_tree(TTree * tree);

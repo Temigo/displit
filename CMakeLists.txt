@@ -1,10 +1,16 @@
 cmake_minimum_required(VERSION 2.8)
 project(p3a)
 
+# Use C++11
+set (CMAKE_CXX_STANDARD 11)
+
 list(APPEND CMAKE_PREFIX_PATH $ENV{ROOTSYS})
 
-find_package(ROOT REQUIRED)
+find_package(ROOT COMPONENTS MathMore REQUIRED)
 include(${ROOT_USE_FILE})
+
+#find_package(GSL REQUIRED)
+#include_directories(${GSL_INCLUDE_DIRS})
 
 add_library(EventTree EventTree.C)
 target_link_libraries(EventTree ${ROOT_LIBRARIES})

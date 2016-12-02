@@ -19,6 +19,8 @@
 #include <TH2D.h>
 #include <TString.h>
 #include <TArrow.h>
+#include <iostream>
+#include <fstream>
 
 Double_t RHO = 0.;
 Double_t LAMBDA = 0.;
@@ -54,7 +56,6 @@ Double_t Event::g(Double_t r)
 // Rejection method to generate radius r
 Double_t Event::r_generate(Double_t rho)
 {
-    
     //TRandom r(0);
     //TF1 * g = new TF1("g", g, rho, TMath::Infinity());
     //Double_t result = g->GetRandom();
@@ -96,20 +97,17 @@ Double_t Event::theta(Double_t r)
 }
 
 // For Rapidity distribution - lifetime
-Double_t Event::lambda(Double_t rho)
+Double_t Event::lambda(Double_t x01)
 {
-    if (rho == RHO)
-    {
-        return LAMBDA;
-    }
     Double_t resultat = 0. ;
+    Double_t rho2 = rho / x01; // Scale first
+
     // Compute for rho <= 1/2
-    
-    if (rho < 1. / 2. ) {
-        resultat = TMath::Log(1. / 3. * (1. / (rho * rho) - 1. ));
+    if (rho2 < 1. / 2. ) {
+        resultat = TMath::Log(1. / 3. * (1. / (rho2 * rho2) - 1. ));
     }
     // Compute for rho > 1/2
-    Double_t borne = (rho < 1. / 2.) ? 1. / 2. : rho;
+    Double_t borne = (rho2 < 1. / 2.) ? 1. / 2. : rho2;
     TF1 * integral_function = new TF1("integral_function", "1. /(x * TMath::Abs(1. -x*x)) * TMath::ATan(TMath::Abs(1. -x)/(1. +x) * TMath::Sqrt((x+1. /2. )/(x-1. /2. )))", borne, TMath::Infinity());
     //integral_function->DrawF1(1., 100.);
     resultat = resultat + 4. / TMath::Pi() * integral_function->Integral(borne, TMath::Infinity());
@@ -121,10 +119,104 @@ Double_t Event::lambda(Double_t rho)
     return resultat;
 }
 
-// Generate rapidity
-Double_t Event::y_generate(Double_t rho)
+/* Creates and saves in __filename__ a lookup table
+ * Logarithmic scale
+ */
+void Event::WriteLookupTable(const char * filename)
 {
-    Double_t lbda = lambda(rho);
+    int n = 320;
+
+    Double_t x01 = 0.0;
+    Double_t step = 0.0000000000000000000000000000001;
+    Double_t l;
+    std::ofstream lut(filename);
+    if (lut.is_open())
+    {
+        lut << rho << " " << n << "\n";
+        for (int i = 1; i <= n; ++i)
+        {
+            if (i%10 == 0) step *= 10. ;
+            x01 += step;
+            l = lambda(x01);
+            lut << x01 << " " << l << "\n";
+        }
+        lut.close();
+    }
+}
+
+/* Loads the lookup table from __filename__ and put it into Interpolator
+ */
+void Event::LoadLookupTable(const char * filename)
+{
+    std::cerr << "Reading lookup table..." << std::endl;
+    std::ifstream lut(filename);
+    Double_t rho;
+    int n;
+    std::vector<Double_t> x01, l;
+    if (lut.is_open())
+    {
+        lut >> rho >> n;
+        Double_t a, b;
+        while(lut >> a >> b)
+        {
+            lookup_table.insert(std::pair<Double_t, Double_t>(a, b));
+            x01.push_back(a);
+            l.push_back(b);
+        }
+        lut.close();
+    }
+    interpolator.SetData(x01, l);
+    x01_min = x01.front();
+    x01_max = x01.back();
+    std::cerr << "\033[1;32m Done. \033[0m" << std::endl;
+}
+
+void Event::PrintLookupTable()
+{
+    std::cerr << "Printing lookup table..." << std::endl;
+    for (auto const& x: lookup_table)
+    {
+        std::cerr << x.first << " " << x.second << std::endl;
+    }
+    std::cerr << "done." << std::endl;    
+}
+
+void Event::SetInterpolatorData()
+{
+    std::vector<Double_t> x01, l;
+    for (auto const& x: lookup_table)
+    {
+        x01.push_back(x.first);
+        l.push_back(x.second);
+    }
+    interpolator.SetData(x01, l);
+}
+
+Double_t Event::getLambda(Double_t x01)
+{
+    if (lookup_table.size() <= 0)
+    {
+        LoadLookupTable("lookup_table");
+    }
+    // Interpolate
+    if (x01_min > x01 || x01 > x01_max)
+    {
+        std::cerr << "\033[1;31mWarning : x01 out of lookup table range.\033[0m \n Adding entry for " << x01 << std::endl;
+        // Add new points
+        lookup_table.insert(std::pair<Double_t, Double_t>(x01, lambda(x01)));
+        x01_min = TMath::Min(x01_min, x01);
+        x01_max = TMath::Max(x01_max, x01);
+        SetInterpolatorData();
+    }
+    //std::cerr << rho << " " << x01 << " " << interpolator.Eval(x01) << std::endl;
+    return interpolator.Eval(x01);
+}
+
+// Generate rapidity
+Double_t Event::y_generate(Double_t x01)
+{
+    gRandom->SetSeed();
+    Double_t lbda = getLambda(x01);
     Double_t R = gRandom->Uniform(0., 1. / lbda);
     // std::cerr << R << " " << lbda << std::endl;
     return -1. / lbda * TMath::Log(1. - lbda * R);
@@ -161,7 +253,7 @@ bool Event::generate(Double_t rho, Dipole * dipole, Dipole * dipole1, Dipole * d
     // First generate rho and theta in normalized referential
     Double_t r = r_generate(rho);
     Double_t t = theta(r);
-    Double_t rapidity = y_generate(rho);   
+    Double_t rapidity = y_generate(dipole->radius);   
     Double_t hb = gRandom->Uniform(0., 1.); // Up or down quadrant
     Double_t gd = gRandom->Uniform(0., 1.); // Left or right quadrant
 
@@ -257,7 +349,6 @@ TTree * Event::make_tree(const char * filename, const char * treename, bool draw
 
     int i = 0;
     Long64_t index = -1; // index of the dipole at current depth
-    Long64_t max_depth;
 
     TCanvas * C = new TCanvas("C", "C", 0, 0, 3000, 2000);
     C->cd(1);
@@ -336,12 +427,13 @@ TTree * Event::make_tree(const char * filename, const char * treename, bool draw
     if (draw) C->Update();
 
     std::cerr << i << " dipôles générés" << std::endl;
-    --max_depth;// because the last depth is for leaves that we didn't stored
 
-    TVector * v = new TVector(1);
-    //v->SetName("max_depth");
-    v[0] = max_depth;
-    tree->GetUserInfo()->Add(v);
+    /*TVector * v = new TVector(2);
+    //v->SetName("simulation_parameters");
+    v[0] = rho;
+    v[1] = max_y;
+    tree->GetUserInfo()->Add(v);*/
+
     //tree->Print();
     // Print entries
     //tree->Scan("rapidity:radius:phi:coord.X():coord.Y():depth:index_children:index_parent");
@@ -358,7 +450,7 @@ void Event::generate_normalized(Double_t rho, Double_t * x, Double_t * y, Double
     // Generate r, theta and y
     Double_t r = r_generate(rho);
     Double_t t = theta(r);
-    *rapidity = y_generate(rho);
+    *rapidity = y_generate(r);
 
     // Compute dP
     Double_t quadrant = gRandom->Uniform(0., 1.);
@@ -477,7 +569,7 @@ void Event::fit_y()
 
     for (int i = 0 ; i < number_occurrences ; ++i)
     {
-        hist->Fill(y_generate(rho));
+        hist->Fill(y_generate(1.0));
     }
     hist->Draw("E1");
 

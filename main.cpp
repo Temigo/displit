@@ -1,5 +1,6 @@
 #include "main.h"
 #include "utils.h"
+#include "event.h"
 
 #include <TApplication.h>
 #include <sstream>
@@ -14,8 +15,8 @@ int main( int argc, const char* argv[] )
 
     std::istringstream iss( argv[1] );
     int val = 0; // By default only read file
-    int nb_events = 10000; // Number of events to read/generate
-    Double_t rho = 0.01;
+    int nb_events = 1000; // Number of events to read/generate
+    Double_t rho = 0.0001;
     Double_t max_y = 1.0;
 
     /*int nthreads = 4;
@@ -25,6 +26,7 @@ int main( int argc, const char* argv[] )
     if (!(iss >> val))
     {
         std::cerr << "Not valid argument." << std::endl;
+        return EXIT_FAILURE;
     }
 
     if (val)
@@ -58,7 +60,12 @@ int main( int argc, const char* argv[] )
     //tree->MakeClass("EventTree");
     compute_biggest_child(tree, myapp);*/
 
+    //Event * e = new Event(rho, max_y);
+    //e->WriteLookupTable("lookup_table");
+    //e->LoadLookupTable("lookup_table");
+    //e->PrintLookupTable();
+    //std::cerr << e->getLambda(1.0) << std::endl;
     //myapp->Run();
 
-    return 0;
+    return EXIT_SUCCESS;
 }

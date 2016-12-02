@@ -41,7 +41,7 @@ void BinLogX(TH1 *h)
 
     for (int i = 0; i <= bins; i++) {
         new_bins[i] = TMath::Power(10, from + i * width);
-        std::cerr << new_bins[i] << std::endl;
+        //std::cerr << new_bins[i] << std::endl;
     }
     axis->Set(bins, new_bins);
     delete new_bins;
@@ -338,6 +338,7 @@ Long64_t GetCommonAncestors(TTree * tree, Long64_t i1, Long64_t i2)
             i3 = t->index_parent;
         }
     }
+    //std::cerr << "same depth" << std::endl;
 
     Long64_t p1 = i4;
     Long64_t p2 = i3;
@@ -357,6 +358,7 @@ Long64_t GetCommonAncestors(TTree * tree, Long64_t i1, Long64_t i2)
 */
 bool RandomSelectkLeaves(TTree * tree, Long64_t indexes[], int k)
 {
+    gRandom->SetSeed();
     //EventTree * t = new EventTree(tree);
     Long64_t nleaves = tree->GetEntries("isLeaf");
     //Long64_t nentries = tree->GetEntries();
@@ -387,16 +389,24 @@ bool RandomSelectkLeaves(TTree * tree, Long64_t indexes[], int k)
 
 void CommonAncestorPlot(TApplication * myapp, int nb_events, Double_t max_y, Double_t x01, Double_t rho)
 {
+    int k = 3; // Randomly select k leaves in each event
+
     TCanvas c;
     c.cd(1);
     gPad->SetLogy();
 
-    TH1F * hist = new TH1F("hancestor", TString::Format("#splitline{Common ancestor over %d events}{with y_max = %.12g and rho = %.12g}", nb_events, max_y, rho), 100, 0, max_y);
+    TH1F * hist = new TH1F("hancestor", TString::Format("#splitline{Common ancestor (k=%d) over %d events}{with y_max = %.12g and rho = %.12g}", k, nb_events, max_y, rho), 100, 0, max_y);
     hist->GetXaxis()->SetTitle("Rapidity");
     hist->GetYaxis()->SetTitle("Number of common ancestors");
 
+    TH1F * hist2 = new TH1F("hancestor2", TString::Format("#splitline{Common ancestor (k=%d) over %d events}{with y_max = %.12g and rho = %.12g}", k, nb_events, max_y, rho), 100, -5, 1);
+    hist2->GetXaxis()->SetTitle("Size");
+    hist2->GetYaxis()->SetTitle("Number of common ancestors");
+    BinLogX(hist2);
+    gPad->SetLogx();
+
     TFile f("tree.root");
-    Long64_t indexes[2];
+    Long64_t indexes[k];
 
     for (int j = 0; j < nb_events; ++j)
     {
@@ -404,28 +414,27 @@ void CommonAncestorPlot(TApplication * myapp, int nb_events, Double_t max_y, Dou
         f.GetObject(TString::Format("tree%d", j), tree);
         //tree->Print();
         std::cerr << j << std::endl;
-        if (RandomSelectkLeaves(tree, indexes, 2))
+        if (RandomSelectkLeaves(tree, indexes, k))
         {
-            //std::cerr << indexes[0] << " " << indexes[1] << std::endl;
-            Long64_t a = GetCommonAncestors(tree, indexes[0], indexes[1]);
-            if (a < 0) a = 0;
-            //std::cerr << a << std::endl;
+            //std::cerr << indexes[0] << " " << indexes[1] << " " << indexes[2] << std::endl;
+            Long64_t a = indexes[0];
+            for (int l = 0; l < k-1; ++l)
+            {
+                a = GetCommonAncestors(tree, a, indexes[l+1]);
+                if (a < 0) a = 0;
+                //std::cerr << a << std::endl;
+            }
 
             // Get rapidity of common ancestor
             EventTree * t = new EventTree(tree);
             t->GetEntry(a);
-            hist->Fill(t->rapidity);
+            //hist->Fill(t->rapidity);
+            hist2->Fill(t->radius * 2.);
         }
-
-        //tree->GetHistogram()->Print();
-        //std::cerr << tree->GetHistogram()->GetXaxis()->GetNbins() << std::endl;
-        //tree->GetHistogram()->SetDirectory(0);
-        //std::cerr << hf->GetEntries() << std::endl;
-        //std::cerr << htemp->GetMean() << std::endl;
-        //number = htemp->GetEntries();
     }
 
-    hist->Draw();
+    //hist->Draw();
+    hist2->Draw();
 
     myapp->Run();
 }
