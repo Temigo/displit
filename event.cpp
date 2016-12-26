@@ -21,6 +21,7 @@
 #include <TArrow.h>
 #include <iostream>
 #include <fstream>
+#include <TSystem.h>
 
 Double_t RHO = 0.;
 Double_t LAMBDA = 0.;
@@ -329,7 +330,7 @@ bool Event::generate(Double_t rho, Dipole * dipole, Dipole * dipole1, Dipole * d
     return true;
 }
 
-TTree * Event::make_tree(const char * filename, const char * treename, bool draw)
+TTree * Event::make_tree(const char * filename, const char * treename, bool draw, bool draw_step_by_step)
 {
     gRandom->SetSeed(); // /!\ IMPORTANT or we always get the same values
     Dipole dipole(0,0);
@@ -352,7 +353,7 @@ TTree * Event::make_tree(const char * filename, const char * treename, bool draw
 
     TCanvas * C = new TCanvas("C", "C", 0, 0, 3000, 2000);
     C->cd(1);
-    if (draw)
+    if (draw || draw_step_by_step)
     {  
         gPad->DrawFrame(-1.0, -1, 2.0, 1.0, TString::Format("#splitline{Dipole splitting - rho = %.12g}{rapidity maximum = %.12g}", rho, max_y));        
     }
@@ -413,7 +414,7 @@ TTree * Event::make_tree(const char * filename, const char * treename, bool draw
             dipole.isLeaf = true;
         }
 
-        if (draw && dipole.isLeaf)
+        if ((draw && dipole.isLeaf) || draw_step_by_step)
         {
             dipole.Draw();
         }
@@ -423,8 +424,18 @@ TTree * Event::make_tree(const char * filename, const char * treename, bool draw
         ++i;
         //max_depth = depth;
         tree->Fill(); // Stores dipole (parent)
+        // if step by step
+        if (draw_step_by_step)
+        {
+            gPad->Modified();
+            gPad->Update();
+            C->WaitPrimitive();
+            //gSystem->Sleep(100);
+            //gSystem->ProcessEvents();
+            std::cin.ignore(); // Wait for keypress before continuing
+        }
     }
-    if (draw) C->Update();
+    if (draw || draw_step_by_step) C->Update();
 
     std::cerr << i << " dipôles générés" << std::endl;
 
@@ -481,13 +492,14 @@ void Event::generate_normalized(Double_t rho, Double_t * x, Double_t * y, Double
 void Event::bare_distribution()
 {
     bool DRAW_ELLIPSES = false; // If we want different colors, use ellipses
+    bool DRAW_STEP_BY_STEP = true;
     int number_occurrences = 300000;
-    Double_t rho = 0.01;
+    Double_t rho = 0.2;
 
     Double_t x[number_occurrences], y[number_occurrences], rapidity[number_occurrences];
 
     TCanvas * C = new TCanvas("C", "C", 0, 0, 1024, 768);
-    C->Divide(2, 1, 0.05, 0.05);
+    if (!DRAW_STEP_BY_STEP) C->Divide(2, 1, 0.05, 0.05);
 
     C->cd(1);
     gPad->SetTitle("QCD");
@@ -503,12 +515,19 @@ void Event::bare_distribution()
     for (int i = 0; i < number_occurrences; ++i)
     {
         generate_normalized(rho, &x[i], &y[i], &rapidity[i]);
-        if (DRAW_ELLIPSES) draw(x[i], y[i], rapidity[i]);
+        if (DRAW_ELLIPSES || DRAW_STEP_BY_STEP) draw(x[i], y[i], rapidity[i]);
+        if (DRAW_STEP_BY_STEP)
+        {
+            C->Modified();
+            C->Update();
+            C->WaitPrimitive();
+            std::cin.ignore();
+        }
         if (y[i] > (hist_y - margin) && y[i] < (hist_y + margin)) hist->Fill(x[i]);
     }
     C->Update();
 
-    if (!DRAW_ELLIPSES)
+    if (!DRAW_ELLIPSES && !DRAW_STEP_BY_STEP)
     {
         TGraph * gluons = new TGraph(number_occurrences, x, y);
         gluons->SetTitle("P3A");

@@ -16,8 +16,8 @@ int main( int argc, const char* argv[] )
     std::istringstream iss( argv[1] );
     int val = 0; // By default only read file
     int nb_events = 1000; // Number of events to read/generate
-    Double_t rho = 0.0001;
-    Double_t max_y = 1.0;
+    Double_t rho = 0.01;
+    Double_t max_y = 4.0;
 
     /*int nthreads = 4;
     ROOT::EnableImplicitMT(nthreads);
@@ -50,7 +50,7 @@ int main( int argc, const char* argv[] )
     // General fit
     //general_plot(myapp);
     //stat_events(myapp, nb_events, max_y, 1.0);
-    CommonAncestorPlot(myapp, nb_events, max_y, 1.0, rho);
+    //CommonAncestorPlot(myapp, nb_events, max_y, 1.0, rho);
     //fluctuations(myapp, nb_events, max_y, 1.0, rho);
 
     // Compute biggest children
@@ -64,6 +64,8 @@ int main( int argc, const char* argv[] )
     //e->WriteLookupTable("lookup_table");
     //e->LoadLookupTable("lookup_table");
     //e->PrintLookupTable();
+    //e->make_tree("tree.root", "tree", false, true);
+    //e->bare_distribution();
     //std::cerr << e->getLambda(1.0) << std::endl;
     //myapp->Run();
 
