@@ -3,6 +3,8 @@
 #include "event.h"
 
 #include <TApplication.h>
+#include<TMath.h>
+#include <TROOT.h>
 #include <sstream>
 #include <iostream>
 
@@ -60,14 +62,20 @@ int main( int argc, const char* argv[] )
     //tree->MakeClass("EventTree");
     compute_biggest_child(tree, myapp);*/
 
-    //Event * e = new Event(rho, max_y);
+    //TF2 * cutoff = new TF2("cutoff", "1", 0, TMath::Infinity(), 0, TMath::Pi());
+    TF2 * cutoff = new TF2("cutoff", "exp(-[0] / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y)))", 0, TMath::Infinity(), 0, TMath::Pi());
+    cutoff->SetParameter(0, 1.0);
+    cutoff->SetParameter(1, 2.0);
+    Event * e = new Event(rho, max_y, cutoff);
     //e->WriteLookupTable("lookup_table");
     //e->LoadLookupTable("lookup_table");
     //e->PrintLookupTable();
     //e->make_tree("tree.root", "tree", false, true);
     //e->bare_distribution();
     //std::cerr << e->getLambda(1.0) << std::endl;
-    //myapp->Run();
+    std::cerr << e->r_generate_cutoff() << std::endl;
+
+    myapp->Run();
 
     return EXIT_SUCCESS;
 }

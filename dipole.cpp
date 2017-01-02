@@ -1,6 +1,9 @@
+/* Implementation of dipole
+*/
 #include "dipole.h"
 
 #include <iostream>
+
 #include <TMath.h>
 #include <TArrow.h>
 
@@ -21,11 +24,13 @@ Dipole::Dipole(Long64_t depth, Long64_t index) :
     isLeaf(false)
 {}
 
+// FIXME : DEPRECATED
 Long64_t Dipole::GetParentDepth()
 {
     return depth-1;
 }
 
+// FIXME : DEPRECATED
 Long64_t Dipole::GetParentIndex()
 {
     return index / 2;

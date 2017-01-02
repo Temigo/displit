@@ -13,23 +13,23 @@
 #include <TAxis.h>
 #include <TApplication.h>
 #include <TFile.h>
-#include <queue>
 #include <TVector.h>
 #include <TH1D.h>
 #include <TH2D.h>
 #include <TString.h>
 #include <TArrow.h>
+#include <TSystem.h>
+#include <TF12.h>
+#include <TROOT.h>
+
+#include <queue>
 #include <iostream>
 #include <fstream>
-#include <TSystem.h>
 
-Double_t RHO = 0.;
-Double_t LAMBDA = 0.;
-Double_t MAX_Y = 2. ;
-
-Event::Event(Double_t rho, Double_t max_y) :
+Event::Event(Double_t rho, Double_t max_y, TF2 * f) :
     rho(rho),
-    max_y(max_y)
+    max_y(max_y),
+    cutoff(f)
 {}
 
 /*Event::Event(TTree * tree)
@@ -37,8 +37,9 @@ Event::Event(Double_t rho, Double_t max_y) :
 
 }*/
 
-Double_t Event::f(Double_t r)
+Double_t Event::f(Double_t * x, Double_t * parameters)
 {
+    Double_t r = *x;
     if (r <= 1. / 2. )
     {
         return TMath::Pi() / (r * (1. -r*r));
@@ -55,7 +56,7 @@ Double_t Event::g(Double_t r)
 }
 
 // Rejection method to generate radius r
-Double_t Event::r_generate(Double_t rho)
+Double_t Event::r_generate()
 {
     //TRandom r(0);
     //TF1 * g = new TF1("g", g, rho, TMath::Infinity());
@@ -64,7 +65,7 @@ Double_t Event::r_generate(Double_t rho)
     Double_t result = 1. / TMath::Sqrt(TMath::Exp((1. - R) * TMath::Log(1. + 1. /(rho * rho)))- 1. );
 
     Double_t temp = gRandom->Uniform(0., 1.);
-    while (temp > f(result) / g(result) )//* 3. / (5. * TMath::Pi()))
+    while (temp > f(&result) / g(result) )//* 3. / (5. * TMath::Pi()))
     {
         //result = g->GetRandom();
         R = gRandom->Uniform(0., 1.);
@@ -75,12 +76,74 @@ Double_t Event::r_generate(Double_t rho)
 }
 
 // Boundary for theta approaching zero
-Double_t Event::phi(Double_t r)
+Double_t phi(Double_t r)
 {
     if (r > 1/2)
     {
         return TMath::ACos(1/(2*r));
     }
+    return 0;
+}
+
+struct IntegralFunction
+{
+    IntegralFunction(TF2 * f):
+        function(f) {}
+
+    double operator() (double * x, double * ) const
+    {
+        if (*x < 0)
+        {
+            return 0.0;
+        }
+        else
+        {
+            TF12 * f12 = new TF12(TString::Format("f12_%s", function->GetName()), function, *x, "y");
+            //gROOT->GetListOfFunctions()->Print();
+            //std::cerr << *x << " " << phi(*x) << std::endl;
+            //f12->DrawF1(0.0, TMath::Pi());
+            return f12->Integral(phi(*x), TMath::Pi());
+        }
+    }
+
+    TF2 * function;
+};
+
+Double_t Event::r_generate_cutoff()
+{
+    TF2 * integrand = new TF2("integrand", "cutoff / (x * (1. + x^2 - 2. * x * cos(y)))", 0, TMath::Infinity(), 0, TMath::Pi());
+    //gROOT->GetListOfFunctions()->Print();
+    TF1 * f_cutoff = new TF1("f_cutoff", new IntegralFunction(integrand), 0.0 , 100, 0);
+    f_cutoff->SetNpx(50);
+
+    // Draw f(r)
+    TCanvas * C = new TCanvas("C", "C", 0, 0, 3000, 2000);
+    C->cd(1);
+    gPad->SetLogy();
+    f_cutoff->DrawF1(0.0, 2);
+
+    //gROOT->GetListOfFunctions()->Print();
+    TF1 * f_old = new TF1("f_old", f, 0.0, 100, 0);
+    f_old->SetLineColor(42);
+    f_old->DrawF1(0.0, 2, "same");
+
+    TF1 * g = new TF1("g", "5 * TMath::Pi() / 3 * 1/(x * (1+x^2)) * exp(- [0] / (2*[1]^2) * (1 + 2*x^2-2*x))", 0, 100);
+    g->SetParameter(0, 1.0);
+    g->SetParameter(1, 2.0);
+    g->SetLineColor(46);
+    g->DrawF1(0.0, 2, "same");
+    // Closest to the gaussian cutoff
+    TF1 * g2 = new TF1("g2", "5 * TMath::Pi() / 3 * 1/(x * (1+x^2)) * exp(- [0] / (2*[1]^2) * (2*x^2))", 0, 100);
+    g2->SetParameter(0, 1.0);
+    g2->SetParameter(1, 2.0);
+    g2->SetLineColor(38);
+    g2->DrawF1(0.0, 2, "same");
+    TF1 * g3 = new TF1("g3", "5 * TMath::Pi() / 3 * 1/(x * (1+x^2))", 0, 100);
+    g3->SetParameter(0, 1.0);
+    g3->SetParameter(1, 2.0);
+    g3->SetLineColor(30);
+    g3->DrawF1(0.0, 2, "same");
+    //return f->GetRandom(0.0, 100);
     return 0;
 }
 
@@ -112,10 +175,6 @@ Double_t Event::lambda(Double_t x01)
     TF1 * integral_function = new TF1("integral_function", "1. /(x * TMath::Abs(1. -x*x)) * TMath::ATan(TMath::Abs(1. -x)/(1. +x) * TMath::Sqrt((x+1. /2. )/(x-1. /2. )))", borne, TMath::Infinity());
     //integral_function->DrawF1(1., 100.);
     resultat = resultat + 4. / TMath::Pi() * integral_function->Integral(borne, TMath::Infinity());
-
-    // Update cache
-    RHO = rho;
-    LAMBDA = resultat;
 
     return resultat;
 }
@@ -247,12 +306,12 @@ void Event::draw_tree(TTree * tree)
     //tree->Draw("rapidity", "", "");
 }
 
-bool Event::generate(Double_t rho, Dipole * dipole, Dipole * dipole1, Dipole * dipole2, Double_t max_y)
+bool Event::generate(Dipole * dipole, Dipole * dipole1, Dipole * dipole2, Double_t max_y)
 {
     // FIXME use SetSeed() here or not ?
     //gRandom->SetSeed();
     // First generate rho and theta in normalized referential
-    Double_t r = r_generate(rho);
+    Double_t r = r_generate();
     Double_t t = theta(r);
     Double_t rapidity = y_generate(dipole->radius);   
     Double_t hb = gRandom->Uniform(0., 1.); // Up or down quadrant
@@ -399,7 +458,7 @@ TTree * Event::make_tree(const char * filename, const char * treename, bool draw
         
         Dipole dipole1(dipole.depth + 1, children_index), 
                dipole2(dipole.depth + 1, children_index + 1);
-        bool success = generate(rho, &dipole, &dipole1, &dipole2, max_y);
+        bool success = generate(&dipole, &dipole1, &dipole2, max_y);
         if (success)
         {
             dipole1.index_parent = dipole.index;
@@ -456,10 +515,10 @@ TTree * Event::make_tree(const char * filename, const char * treename, bool draw
 /********************************************* NORMALIZED + FIT *************************/
 
 // Split 1 dipole - to test the distribution
-void Event::generate_normalized(Double_t rho, Double_t * x, Double_t * y, Double_t * rapidity)
+void Event::generate_normalized(Double_t * x, Double_t * y, Double_t * rapidity)
 {
     // Generate r, theta and y
-    Double_t r = r_generate(rho);
+    Double_t r = r_generate();
     Double_t t = theta(r);
     *rapidity = y_generate(r);
 
@@ -494,7 +553,6 @@ void Event::bare_distribution()
     bool DRAW_ELLIPSES = false; // If we want different colors, use ellipses
     bool DRAW_STEP_BY_STEP = true;
     int number_occurrences = 300000;
-    Double_t rho = 0.2;
 
     Double_t x[number_occurrences], y[number_occurrences], rapidity[number_occurrences];
 
@@ -514,7 +572,7 @@ void Event::bare_distribution()
     // Generate gluons according to dP
     for (int i = 0; i < number_occurrences; ++i)
     {
-        generate_normalized(rho, &x[i], &y[i], &rapidity[i]);
+        generate_normalized(&x[i], &y[i], &rapidity[i]);
         if (DRAW_ELLIPSES || DRAW_STEP_BY_STEP) draw(x[i], y[i], rapidity[i]);
         if (DRAW_STEP_BY_STEP)
         {
@@ -554,7 +612,6 @@ void Event::bare_distribution()
 void Event::fit_r()
 {
     int number_occurrences = 1000000;
-    Double_t rho = 0.01;
 
     TCanvas * C = new TCanvas("C", "Fit r", 0, 0, 1024, 768);
     TH1D * hist = new TH1D("hist", "hist", 400, 0, 2);
@@ -562,7 +619,7 @@ void Event::fit_r()
 
     for (int i = 0 ; i < number_occurrences ; ++i)
     {
-        hist->Fill(r_generate(rho));
+        hist->Fill(r_generate());
     }
     hist->Draw("E1");
 
@@ -580,7 +637,7 @@ void Event::fit_r()
 void Event::fit_y()
 {
     int number_occurrences = 1000000;
-    Double_t rho = 0.01;
+    Double_t x01 = 1.0;
 
     TCanvas * C = new TCanvas("C", "Fit y", 0, 0, 1024, 768);
     TH1D * hist = new TH1D("hist", "hist", 100, 0, 1);
@@ -588,12 +645,12 @@ void Event::fit_y()
 
     for (int i = 0 ; i < number_occurrences ; ++i)
     {
-        hist->Fill(y_generate(1.0));
+        hist->Fill(y_generate(x01));
     }
     hist->Draw("E1");
 
     TF1 * fy = new TF1("fy", "[0] * exp(- [1] * x)", 0, 1);
-    fy->FixParameter(1, LAMBDA);
+    fy->FixParameter(1, getLambda(x01));
     hist->Fit("fy", "R");
 
     Double_t chi2 = fy->GetChisquare();
@@ -603,8 +660,6 @@ void Event::fit_y()
 void Event::fit_x()
 {
     int number_occurrences = 1000000;
-    Double_t rho = 0.01;
-
     Double_t x, y, rapidity;
 
     TCanvas * C = new TCanvas("C", "C", 0, 0, 1024, 768);
@@ -618,7 +673,7 @@ void Event::fit_x()
     // Generate gluons according to dP
     for (int i = 0; i < number_occurrences; ++i)
     {
-        generate_normalized(rho, &x, &y, &rapidity);
+        generate_normalized(&x, &y, &rapidity);
         if (y > (hist_y - margin) && y < (hist_y + margin)) hist->Fill(x);
     }
 

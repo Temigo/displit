@@ -301,7 +301,7 @@ void generate_events(int nb_events, Double_t rho, Double_t max_y)
     std::cerr << "Rho = " << rho << " ; Maximum rapidity = " << max_y << std::endl;
     for (int j = 0; j < nb_events; ++j)
     {
-        Event * e = new Event(rho, max_y);
+        Event * e = new Event(rho, max_y, new TF2("cutoff", "1", 0, TMath::Infinity(), 0, TMath::Pi()));
         TTree * tree = e->make_tree("tree.root", TString::Format("tree%d", j), false);
     }        
     output->Write();
