@@ -295,15 +295,15 @@ void draw_tree(TApplication * myapp, TTree * tree)
 }
 
 // Generate *nb_events* events with same parameters rho and max_y
-void generate_events(int nb_events, Double_t rho, Double_t max_y)
+void generate_events(int nb_events, Double_t rho, Double_t max_y, bool with_cutoff, TF2 * cutoff)
 {
     TFile * output = new TFile("tree.root", "recreate");
     std::cerr << "Rho = " << rho << " ; Maximum rapidity = " << max_y << std::endl;
     for (int j = 0; j < nb_events; ++j)
     {
-        Event * e = new Event(rho, max_y, new TF2("cutoff", "1", 0, TMath::Infinity(), 0, TMath::Pi()));
+        Event * e = new Event(rho, max_y, "lookup_table", cutoff, with_cutoff);
         TTree * tree = e->make_tree("tree.root", TString::Format("tree%d", j), false);
-    }        
+    }
     output->Write();
     std::cerr << "Generated and saved " << nb_events << " events in tree.root." << std::endl;
 }

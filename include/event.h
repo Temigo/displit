@@ -12,8 +12,12 @@ class Event
     Double_t rho; // Cut-off ultraviolet
     Double_t max_y; // Maximal rapidity
     TF2 * cutoff;
+    TF1 * f_cutoff; // f(r) distribution for size of dipoles
     TTree * tree;
     static constexpr char * filename = "tree.root";
+    const char * lut_filename; // Lookup Table filename
+    bool WITH_CUTOFF;
+    Double_t R = 2.0; // cutoff for large sizes
 
     // Lookup table
     ROOT::Math::Interpolator interpolator;
@@ -21,18 +25,17 @@ class Event
     Double_t x01_min, x01_max;
 
     public:
-        Event(Double_t rho, Double_t max_y, TF2 * f);
+        Event(Double_t rho, Double_t max_y, const char * lut_filename, TF2 * f = NULL, bool with_cutoff = false);
         //Event(const char * filename, TTree * tree);
 
         static Double_t f(Double_t  * r, Double_t * parameters = NULL);
         Double_t g(Double_t r);
-        Double_t r_generate();
-        Double_t r_generate_cutoff();
-        Double_t theta(Double_t r);
+        Double_t r_generate(Double_t x01 = 1.0, bool display_cutoff = false);
+        Double_t theta(Double_t r, Double_t x01 = 1.0);
         Double_t lambda(Double_t x01);
         Double_t getLambda(Double_t x01);
-        void WriteLookupTable(const char * filename);
-        void LoadLookupTable(const char * filename);
+        void WriteLookupTable();
+        void LoadLookupTable();
         void PrintLookupTable();
         void SetInterpolatorData();
         Double_t y_generate(Double_t x01);

@@ -18,8 +18,8 @@ int main( int argc, const char* argv[] )
     std::istringstream iss( argv[1] );
     int val = 0; // By default only read file
     int nb_events = 1000; // Number of events to read/generate
-    Double_t rho = 0.01;
-    Double_t max_y = 4.0;
+    Double_t rho = 0.000001;
+    Double_t max_y = 1.0;
 
     /*int nthreads = 4;
     ROOT::EnableImplicitMT(nthreads);
@@ -62,18 +62,20 @@ int main( int argc, const char* argv[] )
     //tree->MakeClass("EventTree");
     compute_biggest_child(tree, myapp);*/
 
-    //TF2 * cutoff = new TF2("cutoff", "1", 0, TMath::Infinity(), 0, TMath::Pi());
-    TF2 * cutoff = new TF2("cutoff", "exp(-[0] / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y)))", 0, TMath::Infinity(), 0, TMath::Pi());
-    cutoff->SetParameter(0, 1.0);
-    cutoff->SetParameter(1, 2.0);
-    Event * e = new Event(rho, max_y, cutoff);
+    //TF2 * cutoff = new TF2("cutoff", "exp(-[0] / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y)))", 0, TMath::Infinity(), 0, TMath::Pi());
+    //Event * e = new Event(rho, max_y, "lookup_table", cutoff, true);
+    Event * e = new Event(rho, max_y, "lookup_table");
     //e->WriteLookupTable("lookup_table");
-    //e->LoadLookupTable("lookup_table");
+    //e->LoadLookupTable();
     //e->PrintLookupTable();
+    std::cerr << e->getLambda(25) << std::endl;
     //e->make_tree("tree.root", "tree", false, true);
     //e->bare_distribution();
     //std::cerr << e->getLambda(1.0) << std::endl;
-    std::cerr << e->r_generate_cutoff() << std::endl;
+    /*Double_t r = e->r_generate(true);
+    std::cerr << r << std::endl;
+    std::cerr << e->theta(r) << std::endl;
+    std::cerr << e->lambda(1.0) << std::endl;*/
 
     myapp->Run();
 

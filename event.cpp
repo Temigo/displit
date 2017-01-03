@@ -26,11 +26,52 @@
 #include <iostream>
 #include <fstream>
 
-Event::Event(Double_t rho, Double_t max_y, TF2 * f) :
+struct IntegralFunction
+{
+    IntegralFunction(TF2 * f, const char * name):
+        function(f),
+        name(name) {}
+
+    double operator() (double * x, double * ) const
+    {
+        if (*x < 0)
+        {
+            return 0.0;
+        }
+        else
+        {
+            TF12 * f12 = new TF12(name, function, *x, "y");
+            //gROOT->GetListOfFunctions()->Print();
+            //std::cerr << *x << " " << phi(*x) << std::endl;
+            //f12->DrawF1(0.0, TMath::Pi());
+            return f12->Integral(phi(*x), TMath::Pi());
+        }
+    }
+
+    TF2 * function;
+    const char * name;
+};
+
+Event::Event(Double_t rho, Double_t max_y, const char * lut_filename, TF2 * f, bool with_cutoff) :
     rho(rho),
     max_y(max_y),
-    cutoff(f)
-{}
+    lut_filename(lut_filename),
+    cutoff(f),
+    WITH_CUTOFF(with_cutoff)
+{
+    if (WITH_CUTOFF && cutoff == NULL)
+    {
+        std::cerr << "[event.cpp] Error initializing event : cutoff undefined." << std::endl;
+    }
+    if (WITH_CUTOFF && cutoff != NULL)
+    {
+        cutoff->SetParameter(1, R);
+
+        TF2 * integrand = new TF2("integrand", "cutoff / (x * (1. + x^2 - 2. * x * cos(y)))", 0.1, TMath::Infinity(), 0, TMath::Pi());   
+        f_cutoff = new TF1("f_cutoff", new IntegralFunction(integrand, "f_cutoff"), 0.1 , 100, 0);
+        f_cutoff->SetNpx(50); // FIXME plotting from 0 to 100 is weird !
+    }    
+}
 
 /*Event::Event(TTree * tree)
 {
@@ -55,26 +96,6 @@ Double_t Event::g(Double_t r)
     return 5. * TMath::Pi() / (3. * r * (1. + r * r));
 }
 
-// Rejection method to generate radius r
-Double_t Event::r_generate()
-{
-    //TRandom r(0);
-    //TF1 * g = new TF1("g", g, rho, TMath::Infinity());
-    //Double_t result = g->GetRandom();
-    Double_t R = gRandom->Uniform(0., 1.);
-    Double_t result = 1. / TMath::Sqrt(TMath::Exp((1. - R) * TMath::Log(1. + 1. /(rho * rho)))- 1. );
-
-    Double_t temp = gRandom->Uniform(0., 1.);
-    while (temp > f(&result) / g(result) )//* 3. / (5. * TMath::Pi()))
-    {
-        //result = g->GetRandom();
-        R = gRandom->Uniform(0., 1.);
-        result = 1. / TMath::Sqrt(TMath::Exp((1. - R) * TMath::Log(1. + 1. /(rho * rho)))- 1.);
-        temp = gRandom->Uniform(0., 1.);
-    }
-    return result;
-}
-
 // Boundary for theta approaching zero
 Double_t phi(Double_t r)
 {
@@ -85,111 +106,145 @@ Double_t phi(Double_t r)
     return 0;
 }
 
-struct IntegralFunction
+// Rejection method to generate radius r
+Double_t Event::r_generate(Double_t x01, bool display_cutoff)
 {
-    IntegralFunction(TF2 * f):
-        function(f) {}
-
-    double operator() (double * x, double * ) const
+    if (WITH_CUTOFF)
     {
-        if (*x < 0)
+        gRandom->SetSeed();
+        f_cutoff->SetParameter(0, x01);
+        //gROOT->GetListOfFunctions()->Print();
+
+        TF1 * g2 = new TF1("g2", "5 * TMath::Pi() / 3 * 1/(x * (1+x^2)) * exp(- [0] / (2*[1]^2) * (2*x^2))", 0.1, 100);
+        g2->SetParameter(0, 1.0);
+        g2->SetParameter(1, 2.0);
+
+        // Draw f(r)
+        if (display_cutoff)
         {
-            return 0.0;
-        }
-        else
-        {
-            TF12 * f12 = new TF12(TString::Format("f12_%s", function->GetName()), function, *x, "y");
+            TCanvas * C = new TCanvas("C", "C", 0, 0, 3000, 2000);
+            C->cd(1);
+            gPad->SetLogy();
+            f_cutoff->DrawF1(0.0, 2);
+
             //gROOT->GetListOfFunctions()->Print();
-            //std::cerr << *x << " " << phi(*x) << std::endl;
-            //f12->DrawF1(0.0, TMath::Pi());
-            return f12->Integral(phi(*x), TMath::Pi());
+            TF1 * f_old = new TF1("f_old", f, 0.0, 100, 0);
+            f_old->SetLineColor(42);
+            f_old->DrawF1(0.0, 2, "same");
+
+            TF1 * g = new TF1("g", "5 * TMath::Pi() / 3 * 1/(x * (1+x^2)) * exp(- [0] / (2*[1]^2) * (1 + 2*x^2-2*x))", 0, 100);
+            g->SetParameter(0, 1.0);
+            g->SetParameter(1, 2.0);
+            g->SetLineColor(46);
+            g->DrawF1(0.0, 2, "same");
+
+            // Closest to the gaussian cutoff
+            g2->SetLineColor(38);
+            g2->DrawF1(0.1, 2, "same");
+
+            TF1 * g3 = new TF1("g3", "5 * TMath::Pi() / 3 * 1/(x * (1+x^2))", 0, 100);
+            g3->SetParameter(0, 1.0);
+            g3->SetParameter(1, 2.0);
+            g3->SetLineColor(30);
+            g3->DrawF1(0.0, 2, "same");
         }
+
+        // Get random following f_cutoff distribution using rejection sampling
+        //return f_cutoff->GetRandom(0.1, 100);
+        Double_t R = gRandom->Uniform(0., 1.);
+        Double_t temp = g2->GetRandom(0.1, 100.);
+        while (temp > f_cutoff->Eval(R) / g2->Eval(R))
+        {
+            R = gRandom->Uniform(0., 1.);
+            temp = g2->GetRandom(0.1, 100.);
+        }    
+        return temp;
     }
+    else
+    {
+        Double_t R = gRandom->Uniform(0., 1.);
+        Double_t result = 1. / TMath::Sqrt(TMath::Exp((1. - R) * TMath::Log(1. + 1. /(rho * rho)))- 1. );
 
-    TF2 * function;
-};
-
-Double_t Event::r_generate_cutoff()
-{
-    TF2 * integrand = new TF2("integrand", "cutoff / (x * (1. + x^2 - 2. * x * cos(y)))", 0, TMath::Infinity(), 0, TMath::Pi());
-    //gROOT->GetListOfFunctions()->Print();
-    TF1 * f_cutoff = new TF1("f_cutoff", new IntegralFunction(integrand), 0.0 , 100, 0);
-    f_cutoff->SetNpx(50);
-
-    // Draw f(r)
-    TCanvas * C = new TCanvas("C", "C", 0, 0, 3000, 2000);
-    C->cd(1);
-    gPad->SetLogy();
-    f_cutoff->DrawF1(0.0, 2);
-
-    //gROOT->GetListOfFunctions()->Print();
-    TF1 * f_old = new TF1("f_old", f, 0.0, 100, 0);
-    f_old->SetLineColor(42);
-    f_old->DrawF1(0.0, 2, "same");
-
-    TF1 * g = new TF1("g", "5 * TMath::Pi() / 3 * 1/(x * (1+x^2)) * exp(- [0] / (2*[1]^2) * (1 + 2*x^2-2*x))", 0, 100);
-    g->SetParameter(0, 1.0);
-    g->SetParameter(1, 2.0);
-    g->SetLineColor(46);
-    g->DrawF1(0.0, 2, "same");
-    // Closest to the gaussian cutoff
-    TF1 * g2 = new TF1("g2", "5 * TMath::Pi() / 3 * 1/(x * (1+x^2)) * exp(- [0] / (2*[1]^2) * (2*x^2))", 0, 100);
-    g2->SetParameter(0, 1.0);
-    g2->SetParameter(1, 2.0);
-    g2->SetLineColor(38);
-    g2->DrawF1(0.0, 2, "same");
-    TF1 * g3 = new TF1("g3", "5 * TMath::Pi() / 3 * 1/(x * (1+x^2))", 0, 100);
-    g3->SetParameter(0, 1.0);
-    g3->SetParameter(1, 2.0);
-    g3->SetLineColor(30);
-    g3->DrawF1(0.0, 2, "same");
-    //return f->GetRandom(0.0, 100);
-    return 0;
+        Double_t temp = gRandom->Uniform(0., 1.);
+        while (temp > f(&result) / g(result) )//* 3. / (5. * TMath::Pi()))
+        {
+            //result = g->GetRandom();
+            R = gRandom->Uniform(0., 1.);
+            result = 1. / TMath::Sqrt(TMath::Exp((1. - R) * TMath::Log(1. + 1. /(rho * rho)))- 1.);
+            temp = gRandom->Uniform(0., 1.);
+        }
+        return result;
+    }
 }
 
 // Distribution for theta
-Double_t Event::theta(Double_t r)
+Double_t Event::theta(Double_t r, Double_t x01)
 {
-    Double_t a = TMath::Abs(1. - r)/(1. + r);
-    Double_t R = gRandom->Uniform(0., 1.);
-    if (r <= 1. / 2.) {
-        return 2. * TMath::ATan((1. - r)/(1. + r) * 1. / TMath::Tan(R * TMath::Pi() / 2. ));
+    gRandom->SetSeed();
+    if (WITH_CUTOFF)
+    {
+        f_cutoff->SetParameter(0, x01);
+        //TF1 * f_cutoff = (TF1*) gROOT->GetFunction("f_cutoff");
+        TF1 * g_theta = new TF1("g_theta", "1/[1] * 1/([0] * (1. + [0]^2 - 2. * [0] * cos(x)))", 0.0, TMath::Pi());
+        g_theta->SetParameter(0, r);
+        g_theta->SetParameter(1, f_cutoff->Eval(r));
+        //g_theta->DrawF1(0.01, TMath::Pi());
+        return g_theta->GetRandom(0.0, TMath::Pi());
     }
-    else {
-        return 2. * TMath::ATan(a * 1. / TMath::Tan(R * TMath::ATan(a * TMath::Sqrt((r+1. / 2. )/(r-1. / 2. )))));
+    else
+    {
+        Double_t a = TMath::Abs(1. - r)/(1. + r);
+        Double_t R = gRandom->Uniform(0., 1.);
+        if (r <= 1. / 2.) {
+            return 2. * TMath::ATan((1. - r)/(1. + r) * 1. / TMath::Tan(R * TMath::Pi() / 2. ));
+        }
+        else {
+            return 2. * TMath::ATan(a * 1. / TMath::Tan(R * TMath::ATan(a * TMath::Sqrt((r+1. / 2. )/(r-1. / 2. )))));
+        }
     }
 }
 
 // For Rapidity distribution - lifetime
 Double_t Event::lambda(Double_t x01)
 {
-    Double_t resultat = 0. ;
-    Double_t rho2 = rho / x01; // Scale first
-
-    // Compute for rho <= 1/2
-    if (rho2 < 1. / 2. ) {
-        resultat = TMath::Log(1. / 3. * (1. / (rho2 * rho2) - 1. ));
+    if (WITH_CUTOFF)
+    {
+        f_cutoff->SetParameter(0, x01);
+        //TF1 * integral_function = new TF1("integral_function", "f_cutoff * 2/TMath::Pi()", 0.0, TMath::Infinity());
+        //f_cutoff->DrawF1(0.0, 2.);
+        return 2.0 / TMath::Pi() * f_cutoff->Integral(rho / x01, TMath::Infinity());
     }
-    // Compute for rho > 1/2
-    Double_t borne = (rho2 < 1. / 2.) ? 1. / 2. : rho2;
-    TF1 * integral_function = new TF1("integral_function", "1. /(x * TMath::Abs(1. -x*x)) * TMath::ATan(TMath::Abs(1. -x)/(1. +x) * TMath::Sqrt((x+1. /2. )/(x-1. /2. )))", borne, TMath::Infinity());
-    //integral_function->DrawF1(1., 100.);
-    resultat = resultat + 4. / TMath::Pi() * integral_function->Integral(borne, TMath::Infinity());
+    else
+    {
+        Double_t resultat = 0. ;
+        Double_t rho2 = rho / x01; // Scale first
 
-    return resultat;
+        // Compute for rho <= 1/2
+        if (rho2 < 1. / 2. ) {
+            resultat = TMath::Log(1. / 3. * (1. / (rho2 * rho2) - 1. ));
+        }
+        // Compute for rho > 1/2
+        Double_t borne = (rho2 < 1. / 2.) ? 1. / 2. : rho2;
+        TF1 * integral_function = new TF1("integral_function", "1. /(x * TMath::Abs(1. -x*x)) * TMath::ATan(TMath::Abs(1. -x)/(1. +x) * TMath::Sqrt((x+1. /2. )/(x-1. /2. )))", borne, TMath::Infinity());
+        //integral_function->DrawF1(1., 100.);
+        resultat = resultat + 4. / TMath::Pi() * integral_function->Integral(borne, TMath::Infinity());
+
+        return resultat;
+    }
 }
 
 /* Creates and saves in __filename__ a lookup table
  * Logarithmic scale
  */
-void Event::WriteLookupTable(const char * filename)
+void Event::WriteLookupTable()
 {
     int n = 320;
 
     Double_t x01 = 0.0;
+    // We shouldn't need to go under the cutoff rho for small sizes
     Double_t step = 0.0000000000000000000000000000001;
     Double_t l;
-    std::ofstream lut(filename);
+    std::ofstream lut(lut_filename);
     if (lut.is_open())
     {
         lut << rho << " " << n << "\n";
@@ -206,16 +261,20 @@ void Event::WriteLookupTable(const char * filename)
 
 /* Loads the lookup table from __filename__ and put it into Interpolator
  */
-void Event::LoadLookupTable(const char * filename)
+void Event::LoadLookupTable()
 {
     std::cerr << "Reading lookup table..." << std::endl;
-    std::ifstream lut(filename);
-    Double_t rho;
+    std::ifstream lut(lut_filename);
+    Double_t rho_lut;
     int n;
     std::vector<Double_t> x01, l;
     if (lut.is_open())
     {
-        lut >> rho >> n;
+        lut >> rho_lut >> n;
+        if (rho_lut != rho)
+        {
+            std::cerr << "\033[1;31mWarning : rho is not the same in the Lookup Table. You should rebuild it.\033[0m \n rho : " << rho_lut << std::endl;
+        }
         Double_t a, b;
         while(lut >> a >> b)
         {
@@ -256,16 +315,39 @@ Double_t Event::getLambda(Double_t x01)
 {
     if (lookup_table.size() <= 0)
     {
-        LoadLookupTable("lookup_table");
+        LoadLookupTable();
     }
     // Interpolate
-    if (x01_min > x01 || x01 > x01_max)
+    if (x01_min > x01)
     {
-        std::cerr << "\033[1;31mWarning : x01 out of lookup table range.\033[0m \n Adding entry for " << x01 << std::endl;
-        // Add new points
-        lookup_table.insert(std::pair<Double_t, Double_t>(x01, lambda(x01)));
-        x01_min = TMath::Min(x01_min, x01);
-        x01_max = TMath::Max(x01_max, x01);
+        std::cerr << "\033[1;31mWarning : x01 out of lookup table range (lower values). This is not supposed to happen !\033[0m " << std::endl;
+    }
+    if (x01 > x01_max)
+    {
+        std::cerr << "\033[1;31mWarning : x01 out of lookup table range (upper values).\033[0m \n Adding entry for " << x01 << std::endl;
+        // Add new points permanently in the LUT
+        Double_t x01_from = x01_max;
+        int p = TMath::Floor(TMath::Log10(x01_from));
+        Double_t step = TMath::Power(10, p);
+        Double_t l;
+        std::ofstream lut(lut_filename, std::ofstream::out | std::ofstream::app);
+        if (lut.is_open())
+        {
+            int i = (int) TMath::Floor(TMath::Exp(TMath::Log(x01_from)-p * TMath::Log(10))) + 1;
+            while (x01_from < x01)
+            {
+                if (i%10 == 0) step *= 10. ;
+                x01_from += step;
+                l = lambda(x01_from);
+                lookup_table.insert(std::pair<Double_t, Double_t>(x01_from, l));
+                lut << x01_from << " " << l << "\n";
+                ++i;
+                std::cerr << x01_from << " " << l << std::endl;
+            }
+            lut.close();
+        }
+
+        x01_max = x01_from;
         SetInterpolatorData();
     }
     //std::cerr << rho << " " << x01 << " " << interpolator.Eval(x01) << std::endl;
@@ -311,8 +393,8 @@ bool Event::generate(Dipole * dipole, Dipole * dipole1, Dipole * dipole2, Double
     // FIXME use SetSeed() here or not ?
     //gRandom->SetSeed();
     // First generate rho and theta in normalized referential
-    Double_t r = r_generate();
-    Double_t t = theta(r);
+    Double_t r = r_generate(dipole->radius);
+    Double_t t = theta(r, dipole->radius);
     Double_t rapidity = y_generate(dipole->radius);   
     Double_t hb = gRandom->Uniform(0., 1.); // Up or down quadrant
     Double_t gd = gRandom->Uniform(0., 1.); // Left or right quadrant
@@ -551,13 +633,13 @@ void Event::generate_normalized(Double_t * x, Double_t * y, Double_t * rapidity)
 void Event::bare_distribution()
 {
     bool DRAW_ELLIPSES = false; // If we want different colors, use ellipses
-    bool DRAW_STEP_BY_STEP = true;
-    int number_occurrences = 300000;
+    bool DRAW_STEP_BY_STEP = false;
+    int number_occurrences = 30000;
 
     Double_t x[number_occurrences], y[number_occurrences], rapidity[number_occurrences];
 
     TCanvas * C = new TCanvas("C", "C", 0, 0, 1024, 768);
-    if (!DRAW_STEP_BY_STEP) C->Divide(2, 1, 0.05, 0.05);
+    //if (!DRAW_STEP_BY_STEP) C->Divide(2, 1, 0.05, 0.05);
 
     C->cd(1);
     gPad->SetTitle("QCD");
@@ -597,7 +679,7 @@ void Event::bare_distribution()
         C->Update();
     }
 
-    C->cd(2);
+    /*C->cd(2);
     gPad->SetLogy();
     hist->Draw("E1");
 
@@ -606,7 +688,7 @@ void Event::bare_distribution()
     hist->Fit("p", "R");
 
     Double_t chi2 = p->GetChisquare();
-    std::cerr << "Chi2 value : " << chi2 << std::endl;   
+    std::cerr << "Chi2 value : " << chi2 << std::endl;  */ 
 }
 
 void Event::fit_r()
