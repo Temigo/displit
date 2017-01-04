@@ -16,6 +16,10 @@
 #include <TThread.h>
 #include <TROOT.h>
 #include <TEntryList.h>
+#include <TKey.h>
+
+#include <exception>
+#include <signal.h>
 
 /*
 Double_t myFunction(Double_t par)
@@ -172,7 +176,7 @@ void general_plot(TApplication * myapp)
 */
 void fluctuations(TApplication * myapp, int nb_events, Double_t max_y, Double_t x01, Double_t rho)
 {
-    Double_t r = 0.5;
+    Double_t r = 0.05;
     bool logX = true;
 
     TCanvas c;
@@ -206,6 +210,12 @@ void fluctuations(TApplication * myapp, int nb_events, Double_t max_y, Double_t 
     pn->FixParameter(3, max_y);
     hfluct->Fit("pn", "IR");
 
+    TF1 * pn_cutoff = new TF1("pn_cutoff", "[0] * [1]^2 / [2]^2 * exp(-[1]^2/(2. * [2]^2)) * 1. / ([3] * [4]) * exp(-x/([3] * [4]))", 3, 50);
+    pn_cutoff->FixParameter(1, x01);
+    pn_cutoff->FixParameter(2, 2.0); // R
+    pn_cutoff->FixParameter(4, hfluct->GetMean()); // mean n
+    //hfluct->Fit("pn_cutoff", "IR+");
+
     c.SetTitle(TString::Format("Chi2 : %.12g", pn->GetChisquare()));
     c.Update();
 
@@ -229,8 +239,25 @@ void stat_events(TApplication * myapp, int nb_events, Double_t max_y, Double_t x
     //hf->Rebin(200, "hf", new_bins);
 
     TFile f("tree.root");
-
-    for (int j = 0; j < nb_events; ++j)
+    f.ls();
+    TList * list = f.GetListOfKeys();
+    TIter iter(list->MakeIterator());
+    while(TObject * obj = iter())
+    {
+        TKey * theKey = (TKey*) obj;
+        TString className = theKey->GetClassName();
+        if (className.Contains("TTree"))
+        {
+            std::cerr << theKey->GetName() << " " << theKey->GetClassName() << std::endl;
+            TTree * tree;
+            f.GetObject(theKey->GetName(), tree);
+            tree->Print();
+            tree->Draw("radius>>+hf", "isLeaf", "goff");
+            //TH1F *htemp = (TH1F*)gPad->GetPrimitive("hf");
+            tree->GetHistogram()->Print();            
+        }
+    }
+    /*for (int j = 0; j < nb_events; ++j)
     {
         TTree * tree;
         f.GetObject(TString::Format("tree%d", j), tree);
@@ -243,7 +270,7 @@ void stat_events(TApplication * myapp, int nb_events, Double_t max_y, Double_t x
         //std::cerr << hf->GetEntries() << std::endl;
         //std::cerr << htemp->GetMean() << std::endl;
         //number = htemp->GetEntries();
-    }
+    }*/
 
     TH1F * htemp = (TH1F*)gDirectory->Get("hf");
     htemp->Print();
@@ -294,18 +321,49 @@ void draw_tree(TApplication * myapp, TTree * tree)
     myapp->Run();
 }
 
+void sig_to_exception(int s)
+{
+    std::cerr << "sig2exception" << std::endl;
+    throw s;
+}
+
 // Generate *nb_events* events with same parameters rho and max_y
 void generate_events(int nb_events, Double_t rho, Double_t max_y, bool with_cutoff, TF2 * cutoff)
 {
+    // Handle interrupt Ctrl-C
+    struct sigaction sigIntHandler;
+    sigIntHandler.sa_handler = sig_to_exception;
+    sigemptyset(&sigIntHandler.sa_mask);
+    sigIntHandler.sa_flags = 0;
+    sigaction(SIGINT, &sigIntHandler, NULL);
+
     TFile * output = new TFile("tree.root", "recreate");
     std::cerr << "Rho = " << rho << " ; Maximum rapidity = " << max_y << std::endl;
-    for (int j = 0; j < nb_events; ++j)
+    int current_index;
+    try
     {
-        Event * e = new Event(rho, max_y, "lookup_table", cutoff, with_cutoff);
-        TTree * tree = e->make_tree("tree.root", TString::Format("tree%d", j), false);
+        for (int j = 0; j < nb_events; ++j)
+        {
+            current_index = j;
+            std::cerr << BLUE << "Tree " << j << RESET << std::endl;
+            Event * e = new Event(rho, max_y, "lookup_table", cutoff, with_cutoff);
+            // The boolean below is for drawing the final splitted dipole
+            TTree * tree = e->make_tree(TString::Format("tree%d", j), false);
+        }
+        output->Write();
+        output->Close();
+        std::cerr << "Generated and saved " << nb_events << " events in tree.root." << std::endl;
     }
-    output->Write();
-    std::cerr << "Generated and saved " << nb_events << " events in tree.root." << std::endl;
+    catch (...)
+    {
+        std::cerr << "Catch" << std::endl;
+        output->Write();
+        output->Delete(TString::Format("tree%d;*", current_index));
+        output->Write(0,TObject::kOverwrite); // remove previous cycles for trees
+        output->Close();
+        std::cerr << "Interrupted at j=" << current_index << std::endl;
+        throw std::runtime_error("Interrupted");
+    }
 }
 
 // Find common ancestor of two dipoles given their index in TTree

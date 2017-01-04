@@ -1,3 +1,5 @@
+#include "color_codes.h"
+
 #include <TApplication.h>
 #include <TTree.h>
 #include <TH1F.h>

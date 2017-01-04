@@ -17,9 +17,9 @@ int main( int argc, const char* argv[] )
 
     std::istringstream iss( argv[1] );
     int val = 0; // By default only read file
-    int nb_events = 1000; // Number of events to read/generate
-    Double_t rho = 0.000001;
-    Double_t max_y = 1.0;
+    int nb_events = 10000; // Number of events to read/generate
+    Double_t rho = 0.01;
+    Double_t max_y = 4.0;
 
     /*int nthreads = 4;
     ROOT::EnableImplicitMT(nthreads);
@@ -33,7 +33,16 @@ int main( int argc, const char* argv[] )
 
     if (val)
     {
-        generate_events(nb_events, rho, max_y);
+        TF2 * cutoff = new TF2("cutoff", "exp(-[0] / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y)))", 0, TMath::Infinity(), 0, TMath::Pi());
+        try
+        {
+            generate_events(nb_events, rho, max_y, true, cutoff);
+        }
+        catch (...)
+        {
+            return EXIT_FAILURE;
+        }
+        //generate_events(nb_events, rho, max_y);
     }
 
     /*TMinuit minuit(1); // Instantiate Minuit for 3 parameters
@@ -51,7 +60,7 @@ int main( int argc, const char* argv[] )
 
     // General fit
     //general_plot(myapp);
-    //stat_events(myapp, nb_events, max_y, 1.0);
+    stat_events(myapp, nb_events, max_y, 1.0);
     //CommonAncestorPlot(myapp, nb_events, max_y, 1.0, rho);
     //fluctuations(myapp, nb_events, max_y, 1.0, rho);
 
@@ -64,11 +73,11 @@ int main( int argc, const char* argv[] )
 
     //TF2 * cutoff = new TF2("cutoff", "exp(-[0] / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y)))", 0, TMath::Infinity(), 0, TMath::Pi());
     //Event * e = new Event(rho, max_y, "lookup_table", cutoff, true);
-    Event * e = new Event(rho, max_y, "lookup_table");
+    //Event * e = new Event(rho, max_y, "lookup_table");
     //e->WriteLookupTable("lookup_table");
     //e->LoadLookupTable();
     //e->PrintLookupTable();
-    std::cerr << e->getLambda(25) << std::endl;
+    //std::cerr << e->getLambda(35) << std::endl;
     //e->make_tree("tree.root", "tree", false, true);
     //e->bare_distribution();
     //std::cerr << e->getLambda(1.0) << std::endl;
@@ -77,7 +86,8 @@ int main( int argc, const char* argv[] )
     std::cerr << e->theta(r) << std::endl;
     std::cerr << e->lambda(1.0) << std::endl;*/
 
-    myapp->Run();
+    std::cerr << "Finished" << std::endl;
+    //myapp->Run();
 
     return EXIT_SUCCESS;
 }

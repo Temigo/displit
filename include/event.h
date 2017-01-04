@@ -1,4 +1,5 @@
 #include "dipole.h"
+#include "color_codes.h"
 
 #include <TTree.h>
 #include <map>
@@ -50,5 +51,5 @@ class Event
         void fit_y();
         void fit_x();
         
-        TTree * make_tree(const char * filename = filename, const char * treename = "T", bool draw = false, bool draw_step_by_step = false);
+        TTree * make_tree(const char * treename = "T", bool draw_dipole = false, bool draw_step_by_step = false);
 };

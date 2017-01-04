@@ -127,7 +127,6 @@ Double_t Event::r_generate(Double_t x01, bool display_cutoff)
             gPad->SetLogy();
             f_cutoff->DrawF1(0.0, 2);
 
-            //gROOT->GetListOfFunctions()->Print();
             TF1 * f_old = new TF1("f_old", f, 0.0, 100, 0);
             f_old->SetLineColor(42);
             f_old->DrawF1(0.0, 2, "same");
@@ -273,7 +272,12 @@ void Event::LoadLookupTable()
         lut >> rho_lut >> n;
         if (rho_lut != rho)
         {
-            std::cerr << "\033[1;31mWarning : rho is not the same in the Lookup Table. You should rebuild it.\033[0m \n rho : " << rho_lut << std::endl;
+            std::cerr << RED << "Warning : rho is not the same in the Lookup Table. Rebuilding it..." << RESET << " \n Old rho : " << rho_lut << std::endl;
+            lut.close();
+            WriteLookupTable();
+            lut.clear();
+            lut.open(lut_filename);
+            lut >> rho_lut >> n;
         }
         Double_t a, b;
         while(lut >> a >> b)
@@ -320,11 +324,11 @@ Double_t Event::getLambda(Double_t x01)
     // Interpolate
     if (x01_min > x01)
     {
-        std::cerr << "\033[1;31mWarning : x01 out of lookup table range (lower values). This is not supposed to happen !\033[0m " << std::endl;
+        std::cerr << RED << "Warning : x01 out of lookup table range (lower values). This is not supposed to happen !" << RESET << std::endl;
     }
     if (x01 > x01_max)
     {
-        std::cerr << "\033[1;31mWarning : x01 out of lookup table range (upper values).\033[0m \n Adding entry for " << x01 << std::endl;
+        std::cerr << RED << "Warning : x01 out of lookup table range (upper values)." << RESET << " \n Adding entry for " << x01 << std::endl;
         // Add new points permanently in the LUT
         Double_t x01_from = x01_max;
         int p = TMath::Floor(TMath::Log10(x01_from));
@@ -471,7 +475,7 @@ bool Event::generate(Dipole * dipole, Dipole * dipole1, Dipole * dipole2, Double
     return true;
 }
 
-TTree * Event::make_tree(const char * filename, const char * treename, bool draw, bool draw_step_by_step)
+TTree * Event::make_tree(const char * treename, bool draw_dipole, bool draw_step_by_step)
 {
     gRandom->SetSeed(); // /!\ IMPORTANT or we always get the same values
     Dipole dipole(0,0);
@@ -480,22 +484,27 @@ TTree * Event::make_tree(const char * filename, const char * treename, bool draw
     dipoles.push(dipole);
 
     TTree * tree = new TTree(treename, "Dipole splitting");
+    // Essential branches
     tree->Branch("rapidity", &dipole.rapidity, "rapidity/D");
     tree->Branch("radius", &dipole.radius, "radius/D");
-    tree->Branch("phi", &dipole.phi, "phi/D");
-    tree->Branch("coord", "TVector2", &dipole.coord);
-    tree->Branch("depth", &dipole.depth, "depth/L");
-    tree->Branch("index_children", &dipole.index_children, "index_children/L");
-    tree->Branch("index_parent", &dipole.index_parent, "index_parent/L");
     tree->Branch("isLeaf", &dipole.isLeaf, "isLeaf/O");
+    // For drawing purpose ?
+    //tree->Branch("phi", &dipole.phi, "phi/D");
+    //tree->Branch("coord", "TVector2", &dipole.coord);
+    // For common ancestor
+    //tree->Branch("depth", &dipole.depth, "depth/L");
+    //tree->Branch("index_children", &dipole.index_children, "index_children/L");
+    //tree->Branch("index_parent", &dipole.index_parent, "index_parent/L");
+    
 
     int i = 0;
     Long64_t index = -1; // index of the dipole at current depth
 
     TCanvas * C = new TCanvas("C", "C", 0, 0, 3000, 2000);
     C->cd(1);
-    if (draw || draw_step_by_step)
+    if (draw_dipole || draw_step_by_step)
     {  
+        std::cerr << 345 << draw_dipole << draw_step_by_step << std::endl;
         gPad->DrawFrame(-1.0, -1, 2.0, 1.0, TString::Format("#splitline{Dipole splitting - rho = %.12g}{rapidity maximum = %.12g}", rho, max_y));        
     }
 
@@ -555,7 +564,7 @@ TTree * Event::make_tree(const char * filename, const char * treename, bool draw
             dipole.isLeaf = true;
         }
 
-        if ((draw && dipole.isLeaf) || draw_step_by_step)
+        if ((draw_dipole && dipole.isLeaf) || draw_step_by_step)
         {
             dipole.Draw();
         }
@@ -576,7 +585,7 @@ TTree * Event::make_tree(const char * filename, const char * treename, bool draw
             std::cin.ignore(); // Wait for keypress before continuing
         }
     }
-    if (draw || draw_step_by_step) C->Update();
+    if (draw_dipole || draw_step_by_step) C->Update();
 
     std::cerr << i << " dipôles générés" << std::endl;
 
