@@ -11,7 +11,7 @@ Dipole::Dipole(Long64_t depth, Long64_t index) :
     coord(0.5, 0.0), 
     phi(0.0), 
     rapidity(0.0), 
-    radius(0.5), 
+    radius(1.0), 
     /*parent(nullptr), 
     child1(nullptr), 
     child2(nullptr) */
@@ -38,7 +38,8 @@ Long64_t Dipole::GetParentIndex()
 
 void Dipole::Draw()
 {
-    TArrow * ar = new TArrow(coord.X()-radius*TMath::Cos(phi), coord.Y()-radius*TMath::Sin(phi), coord.X() + radius * TMath::Cos(phi), coord.Y() + radius * TMath::Sin(phi), 0.05, "|");            
+    TArrow * ar = new TArrow(coord.X()-radius/2. *TMath::Cos(phi), coord.Y()-radius/2. *TMath::Sin(phi), coord.X() + radius/2. * TMath::Cos(phi), coord.Y() + radius/2. * TMath::Sin(phi), 0.05, "|");            
     ar->SetLineColor(2);
+    if (!isLeaf) ar->SetLineColor(4);
     ar->Draw();
 }

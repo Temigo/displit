@@ -5,19 +5,33 @@
 #include <map>
 #include <Math/Interpolator.h>
 #include <TF2.h>
+#include <TF12.h>
+#include<TMath.h>
 
 Double_t phi(Double_t r);
+
+struct IntegralFunction
+{
+    TF2 * function;
+    TF12 * f12;
+    const char * name;
+    IntegralFunction(TF2 * f, const char * name);
+    double operator() (double * x, double * p) const;
+};
 
 class Event
 {
     Double_t rho; // Cut-off ultraviolet
     Double_t max_y; // Maximal rapidity
     TF2 * cutoff;
+    TF2 * integrand;
+    IntegralFunction * integralFunction;
     TF1 * f_cutoff; // f(r) distribution for size of dipoles
     TTree * tree;
     static constexpr char * filename = "tree.root";
     const char * lut_filename; // Lookup Table filename
     bool WITH_CUTOFF;
+    bool RAW_CUTOFF;
     Double_t R = 2.0; // cutoff for large sizes
 
     // Lookup table
@@ -26,8 +40,9 @@ class Event
     Double_t x01_min, x01_max;
 
     public:
-        Event(Double_t rho, Double_t max_y, const char * lut_filename, TF2 * f = NULL, bool with_cutoff = false);
+        Event(Double_t rho, Double_t max_y, const char * lut_filename, TF2 * f = NULL, bool with_cutoff = false, bool raw_cutoff=false);
         //Event(const char * filename, TTree * tree);
+        ~Event();
 
         static Double_t f(Double_t  * r, Double_t * parameters = NULL);
         Double_t g(Double_t r);
@@ -51,5 +66,5 @@ class Event
         void fit_y();
         void fit_x();
         
-        TTree * make_tree(const char * treename = "T", bool draw_dipole = false, bool draw_step_by_step = false);
+        void make_tree(TTree * tree, bool draw_dipole = false, bool draw_step_by_step = false);
 };

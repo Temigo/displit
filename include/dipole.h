@@ -5,7 +5,7 @@ class Dipole {
         TVector2 coord; // vector for the dipole's center
         Double_t phi; // angle of the dipole in its own referential
         Double_t rapidity; 
-        Double_t radius; // HALF length of dipole
+        Double_t radius; // length of dipole
 
         /*Dipole * parent;
         Dipole * child1;
