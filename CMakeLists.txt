@@ -28,6 +28,10 @@ add_library(utils utils.cpp)
 target_link_libraries(utils ${ROOT_LIBRARIES} event EventTree)
 target_include_directories(utils PUBLIC include/ )
 
+add_library(graphics graphics.cpp)
+target_link_libraries(graphics ${ROOT_LIBRARIES} event)
+target_include_directories(graphics PUBLIC include/ )
+
 add_executable(main main.cpp)
-target_link_libraries(main ${ROOT_LIBRARIES} utils)
+target_link_libraries(main ${ROOT_LIBRARIES} utils graphics)
 target_include_directories(main PUBLIC include/ )

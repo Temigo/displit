@@ -407,6 +407,21 @@ Double_t Event::y_generate(Double_t x01)
     return -1. / lbda * TMath::Log(1. - lbda * R);
 }
 
+Double_t Event::r_generate2(Double_t x01)
+{
+    gRandom->SetSeed();
+    Double_t r = r_generate(x01);
+    Double_t t = theta(r, x01);
+    Double_t temp = gRandom->Uniform(0.0, 1.0);
+    cutoff->SetParameter(0, x01);
+    while(temp > cutoff->Eval(r, t))
+    {
+        r = r_generate(x01);
+        t = theta(r, x01);
+        temp = gRandom->Uniform(0.0, 1.0);
+    } 
+    return r;   
+}
 // Draw a single gluon with an ellipse
 void Event::draw(Double_t x, Double_t y, Double_t rapidity)
 {
@@ -435,11 +450,16 @@ bool Event::generate(Dipole * dipole, Dipole * dipole1, Dipole * dipole2, Double
         cutoff->SetParameter(0, dipole->radius);
         while(temp > cutoff->Eval(r, t))
         {
+            //std::cerr << temp << std::endl;
             r = r_generate(dipole->radius);
             t = theta(r, dipole->radius);
             temp = gRandom->Uniform(0.0, 1.0);
         }
-        if (r > 10) std::cerr << "Big r : " << r << std::endl;
+        /*while (r > 2)
+        {
+            r = r_generate(dipole->radius);
+            t = theta(r, dipole->radius);            
+        }*/
     }
 
     Double_t rapidity = y_generate(dipole->radius);   

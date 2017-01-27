@@ -55,6 +55,7 @@ class Event
         void PrintLookupTable();
         void SetInterpolatorData();
         Double_t y_generate(Double_t x01);
+        Double_t r_generate2(Double_t x01 = 1.0);
 
         void draw(Double_t x, Double_t y, Double_t rapidity);
         void draw_tree(TTree * tree);

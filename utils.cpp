@@ -39,6 +39,7 @@ void generate_events(int nb_events, Double_t rho, Double_t max_y, bool with_cuto
 
     TFile output("tree.root", "recreate");
     std::cerr << "Rho = " << rho << " ; Maximum rapidity = " << max_y << std::endl;
+    std::cerr << "With cutoff = " << with_cutoff << " ; Raw computation = " << raw_cutoff << std::endl;
     int current_index;
     try
     {
@@ -49,7 +50,7 @@ void generate_events(int nb_events, Double_t rho, Double_t max_y, bool with_cuto
             std::cerr << BLUE << "Tree " << j << RESET << std::endl;
             // The boolean below is for drawing the final splitted dipole
             TTree * tree = new TTree(TString::Format("tree%d", j), "Dipole splitting");
-            e.make_tree(tree, true);
+            e.make_tree(tree, false);
             //if (j%50 == 0) output->Write();
         }
         // output = tree->GetCurrentFile() ??
@@ -83,7 +84,7 @@ void fluctuations(TApplication * myapp, int nb_events, Double_t max_y, Double_t 
     c.cd(1);
     if (logX) gPad->SetLogx();
     gPad->SetLogy();
-    TH1F * hfluct = new TH1F("hfluct", TString::Format("#splitline{Fluctuations over %d events}{with y_max = %.12g, r = %.12g and rho = %.12g}", nb_events, max_y, r, rho), 100, 0, 100);
+    TH1F * hfluct = new TH1F("hfluct", TString::Format("#splitline{Fluctuations over %d events}{with y_max = %.12g, r = %.12g and rho = %.12g}", nb_events, max_y, r, rho), 100, 0, 0);
     hfluct->GetXaxis()->SetTitle("Number of events n(r, x01, y_max)");
     hfluct->GetYaxis()->SetTitle("p_n(r, x01, y)");
     if (logX) BinLogX2(hfluct, 100);
@@ -97,28 +98,29 @@ void fluctuations(TApplication * myapp, int nb_events, Double_t max_y, Double_t 
         //tree->Print();
         int n = tree->Draw("radius", TString::Format("isLeaf && radius >= %.12g", r), "goff");
         hfluct->Fill(n);
-        std::cerr << j << std::endl;
+        std::cerr << "\r" << j;
         delete tree;
     }
     if (logX) hfluct->Sumw2();
     if (logX) hfluct->Scale(1, "width");
     hfluct->Draw("E");
     
-    TF1 pn("pn", "[0] / x * [1] * [1] / ([2] * [2]) * exp(- log(x)*log(x)/(4*[3]))", 10, 500);
+    TF1 pn("pn", "[0] / x * [1] * [1] / ([2] * [2]) * exp(- log(x)*log(x)/(4*[3]))", 1000, 2000);
     pn.FixParameter(1, x01);
     pn.FixParameter(2, r);
     pn.FixParameter(3, max_y);
-    hfluct->Fit("pn", "IR");
+    pn.SetLineColor(kViolet);
+    //hfluct->Fit("pn", "IR");
 
     // Parameter 0 : proportionality | 3 : c
-    TF1 pn_cutoff("pn_cutoff", "[0] * [1]^2 / [2]^2 * exp(-[1]^2/(2. * [2]^2)) * exp(-x/([3] * [4]))", 10, 500);
+    TF1 pn_cutoff("pn_cutoff", "[0] * [1]^2 / [2]^2 * exp(-[1]^2/(2. * [2]^2)) * exp(-x/([3] * [4]))", 1000, 4000);
     pn_cutoff.FixParameter(1, x01);
     pn_cutoff.FixParameter(2, 2.0); // R
-    pn_cutoff.SetParLimits(3, 0.1, 5);
+    pn_cutoff.SetParLimits(3, 0.01, 20);
     pn_cutoff.FixParameter(4, hfluct->GetMean()); // mean n
     hfluct->Fit("pn_cutoff", "*IR+");
 
-    c.SetTitle(TString::Format("Chi2 : %.12g", pn.GetChisquare()));
+    c.SetTitle(TString::Format("Chi2 : %.12g", pn_cutoff.GetChisquare()));
     c.Update();
 
     myapp->Run();
