@@ -30,11 +30,14 @@ int main( int argc, char* argv[] )
     gRandom = new TRandom3(0);
 
     std::istringstream iss( argv[1] );
+    //std::istringstream iss2 ( argv[2] );
     int val = 0; // By default only read file
+    char * tree_file = argv[2];
     int nb_events = 10; // Number of events to read/generate
     Double_t rho = 0.01;
     Double_t max_y = 3.0;
 
+    //std::cerr << argv[2];
     if (!(iss >> val))
     {
         std::cerr << "Not valid argument." << std::endl;
@@ -43,10 +46,11 @@ int main( int argc, char* argv[] )
 
     if (val)
     {
+        std::cerr << tree_file << std::endl;
         // Gaussian cutoff
         //TF2 * cutoff = new TF2("cutoff", "exp(-[0] / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y)))", 0, TMath::Infinity(), 0, TMath::Pi());
         // Lorentzian cutoff
-        //TF2 * cutoff = new TF2("cutoff", "1 / (1 + ([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y))))", 0, TMath::Infinity(), 0, TMath::Pi());
+        TF2 * cutoff = new TF2("cutoff", "1 / (1 + ([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y))))", 0, TMath::Infinity(), 0, TMath::Pi());
         // Maxwellian cutoff
         //TF2 * cutoff = new TF2("cutoff", "1 / (1 + exp([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y))))", 0, TMath::Infinity(), 0, TMath::Pi());
         // Heaviside
@@ -59,7 +63,7 @@ int main( int argc, char* argv[] )
         //cutoff->Draw("surf2");
         try
         {
-           generate_events(nb_events, rho, max_y, true, cutoff, false);
+           generate_events(nb_events, rho, max_y, true, cutoff, false, tree_file);
         }
         catch (...)
         {

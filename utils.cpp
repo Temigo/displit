@@ -28,7 +28,7 @@ void sig_to_exception(int s)
 }
 
 // Generate *nb_events* events with same parameters rho and max_y
-void generate_events(int nb_events, Double_t rho, Double_t max_y, bool with_cutoff, TF1 * cutoff, bool raw_cutoff)
+void generate_events(int nb_events, Double_t rho, Double_t max_y, bool with_cutoff, TF1 * cutoff, bool raw_cutoff, const char * tree_file)
 {
     // Handle interrupt Ctrl-C
     struct sigaction sigIntHandler;
@@ -37,7 +37,7 @@ void generate_events(int nb_events, Double_t rho, Double_t max_y, bool with_cuto
     sigIntHandler.sa_flags = 0;
     sigaction(SIGINT, &sigIntHandler, NULL);
 
-    TFile output("tree.root", "recreate");
+    TFile output(tree_file, "recreate");
     std::cerr << "Rho = " << rho << " ; Maximum rapidity = " << max_y << std::endl;
     std::cerr << "With cutoff = " << with_cutoff << " ; Raw computation = " << raw_cutoff << std::endl;
     int current_index;
