@@ -47,7 +47,7 @@ double IntegralFunction::operator() (double * x, double * p) const
     }
 }
 
-Event::Event(Double_t rho, Double_t max_y, const char * lut_filename, TF2 * f, bool with_cutoff, bool raw_cutoff) :
+Event::Event(Double_t rho, Double_t max_y, const char * lut_filename, TF1 * f, bool with_cutoff, bool raw_cutoff) :
     rho(rho),
     max_y(max_y),
     lut_filename(lut_filename),
@@ -283,6 +283,7 @@ void Event::WriteLookupTable()
     // We shouldn't need to go under the cutoff rho for small sizes
     Double_t step = 0.0000000000000000000000000000001;
     Double_t l;
+    std::cerr << "Writing lookup table... ";
     std::ofstream lut(lut_filename);
     if (lut.is_open())
     {
@@ -296,6 +297,7 @@ void Event::WriteLookupTable()
         }
         lut.close();
     }
+    std::cerr << "Done." << std::endl;
 }
 
 /* Loads the lookup table from __filename__ and put it into Interpolator

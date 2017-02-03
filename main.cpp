@@ -13,6 +13,13 @@
 #include <TLine.h>
 #include <sstream>
 #include <iostream>
+#include <RooStats/Heaviside.h>
+
+Double_t heaviside(Double_t * x, Double_t * p)
+{
+    std::cerr << x[0] << " " << x[1] << std::endl;
+    return (x[0] > 2 ? 0.0 : 1.0);
+}
 
 int main( int argc, char* argv[] )
 {
@@ -24,8 +31,8 @@ int main( int argc, char* argv[] )
 
     std::istringstream iss( argv[1] );
     int val = 0; // By default only read file
-    int nb_events = 1000; // Number of events to read/generate
-    Double_t rho = 0.001;
+    int nb_events = 10; // Number of events to read/generate
+    Double_t rho = 0.01;
     Double_t max_y = 3.0;
 
     if (!(iss >> val))
@@ -39,18 +46,20 @@ int main( int argc, char* argv[] )
         // Gaussian cutoff
         //TF2 * cutoff = new TF2("cutoff", "exp(-[0] / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y)))", 0, TMath::Infinity(), 0, TMath::Pi());
         // Lorentzian cutoff
-        TF2 * cutoff = new TF2("cutoff", "1 / (1 + ([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y))))", 0, TMath::Infinity(), 0, TMath::Pi());
+        //TF2 * cutoff = new TF2("cutoff", "1 / (1 + ([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y))))", 0, TMath::Infinity(), 0, TMath::Pi());
         // Maxwellian cutoff
         //TF2 * cutoff = new TF2("cutoff", "1 / (1 + exp([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y))))", 0, TMath::Infinity(), 0, TMath::Pi());
         // Heaviside
-        //TF2 * cutoff = new TF2("cutoff", "( (-1+x^2 -x*cos(y))> 0 ? 0.0 : 1.0) * y/y", 0, TMath::Infinity(), 0, TMath::Pi());
-
-        /*cutoff->SetParameter(0, 1.0);
-        cutoff->SetParameter(1, 2.0);
-        cutoff->Draw("surf1");*/
+        //TF2 * cutoff = new TF2("cutoff", heaviside, 0, TMath::Infinity(), 0, TMath::Pi(), 2);
+        //TF1 * cutoff = new TF1("cutoff", "(x > 2) ? 0.0 : 1.0", 0, TMath::Infinity());
+        //std::cerr << cutoff->Eval(3, 2.5);
+        //std::cerr << cutoff->Integral(0, 77, 0, TMath::Pi());
+        //cutoff->SetParameter(0, 1.0);
+        //cutoff->SetParameter(1, 2.0);
+        //cutoff->Draw("surf2");
         try
         {
-            generate_events(nb_events, rho, max_y, true, cutoff, false);
+           generate_events(nb_events, rho, max_y, true, cutoff, false);
         }
         catch (...)
         {
@@ -64,7 +73,7 @@ int main( int argc, char* argv[] )
     //stat_events(myapp, max_y, 1.0);
     //CommonAncestorPlot(myapp, nb_events, max_y, 1.0, rho);
     //fluctuations(myapp, nb_events, max_y, 1.0, rho);
-    draw_cutoffs(myapp);
+    //draw_cutoffs(myapp);
 
     // Compute biggest children
     /*TFile f("tree.root");

@@ -28,7 +28,7 @@ void sig_to_exception(int s)
 }
 
 // Generate *nb_events* events with same parameters rho and max_y
-void generate_events(int nb_events, Double_t rho, Double_t max_y, bool with_cutoff, TF2 * cutoff, bool raw_cutoff)
+void generate_events(int nb_events, Double_t rho, Double_t max_y, bool with_cutoff, TF1 * cutoff, bool raw_cutoff)
 {
     // Handle interrupt Ctrl-C
     struct sigaction sigIntHandler;
@@ -44,6 +44,7 @@ void generate_events(int nb_events, Double_t rho, Double_t max_y, bool with_cuto
     try
     {
         Event e(rho, max_y, "lookup_table", cutoff, with_cutoff, raw_cutoff);
+        e.WriteLookupTable(); // in case the cutoff changed
         for (int j = 0; j < nb_events; ++j)
         {
             current_index = j;
@@ -113,12 +114,12 @@ void fluctuations(TApplication * myapp, int nb_events, Double_t max_y, Double_t 
     //hfluct->Fit("pn", "IR");
 
     // Parameter 0 : proportionality | 3 : c
-    TF1 pn_cutoff("pn_cutoff", "[0] * [1]^2 / [2]^2 * exp(-[1]^2/(2. * [2]^2)) * exp(-x/([3] * [4]))", 1000, 4000);
+    TF1 pn_cutoff("pn_cutoff", "[0] * [1]^2 / [2]^2 * exp(-[1]^2/(2. * [2]^2)) * exp(-x/([3] * [4]))", 1000, 3000);
     pn_cutoff.FixParameter(1, x01);
     pn_cutoff.FixParameter(2, 2.0); // R
     pn_cutoff.SetParLimits(3, 0.01, 20);
     pn_cutoff.FixParameter(4, hfluct->GetMean()); // mean n
-    hfluct->Fit("pn_cutoff", "*IR+");
+    //hfluct->Fit("pn_cutoff", "*IR+");
 
     c.SetTitle(TString::Format("Chi2 : %.12g", pn_cutoff.GetChisquare()));
     c.Update();
@@ -142,7 +143,7 @@ void stat_events(TApplication * myapp, Double_t max_y, Double_t x01)
     //TH1F * hf = new TH1F("hf", "Total 2", 100, new_bins);
     //hf->Rebin(200, "hf", new_bins);
 
-    TH1D hf("hf", "Radius", 200, 0, 0.1);
+    TH1D hf("hf", "Radius", 200, 0, 10);
     // Get List of trees independently (in case it was aborted before nb_events)
     TFile f("tree.root");
     f.ls();
@@ -159,7 +160,7 @@ void stat_events(TApplication * myapp, Double_t max_y, Double_t x01)
             TTree * tree;
             f.GetObject(theKey->GetName(), tree);
             //tree->Print();
-            tree->Draw("radius >>+hf", "isLeaf && radius < 0.1"); 
+            tree->Draw("radius >>+hf", ""); 
             ++nb_events;         
         }
     }

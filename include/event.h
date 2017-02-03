@@ -23,7 +23,7 @@ class Event
 {
     Double_t rho; // Cut-off ultraviolet
     Double_t max_y; // Maximal rapidity
-    TF2 * cutoff;
+    TF1 * cutoff;
     TF2 * integrand;
     IntegralFunction * integralFunction;
     TF1 * f_cutoff; // f(r) distribution for size of dipoles
@@ -40,7 +40,7 @@ class Event
     Double_t x01_min, x01_max;
 
     public:
-        Event(Double_t rho, Double_t max_y, const char * lut_filename, TF2 * f = NULL, bool with_cutoff = false, bool raw_cutoff=false);
+        Event(Double_t rho, Double_t max_y, const char * lut_filename, TF1 * f = NULL, bool with_cutoff = false, bool raw_cutoff=false);
         //Event(const char * filename, TTree * tree);
         ~Event();
 

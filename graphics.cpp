@@ -14,24 +14,81 @@ void draw_cutoffs(TApplication * myapp)
     TF2 * cutoff = new TF2("cutoff", "exp(-[0] / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y)))", 0, r_max, 0, TMath::Pi());
     cutoff->SetParameter(0, 1.0);
     cutoff->SetParameter(1, 2.0);
+    TF12 * cutoff12 = new TF12("cutoff12", cutoff, 0.0, "x");
+
+    cutoff12->SetTitle("Cutoffs");
+    cutoff12->SetLineColor(kRed);
+    cutoff12->SetLineWidth(3);
+    //cutoff12->GetHistogram()->GetXaxis()->SetTitle("Size of dipole r");
+    cutoff12->SetLineStyle(1);
+    cutoff12->DrawCopy();
+    cutoff12->SetLineWidth(1);
+    cutoff12->SetXY(TMath::Pi()/3.0);
+    cutoff12->SetLineStyle(2);
+    cutoff12->DrawCopy("same");
+    cutoff12->SetXY(TMath::Pi()*2.0/3.0);
+    cutoff12->SetLineStyle(8);
+    cutoff12->DrawCopy("same");
+    cutoff12->SetXY(TMath::Pi());
+    cutoff12->SetLineStyle(9);
+    cutoff12->SetLineWidth(3);
+    cutoff12->DrawCopy("same"); 
+
     // Lorentzian cutoff
     TF2 * cutoff_lorentzian = new TF2("cutoff_lorentzian", "1 / (1 + ([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y))))", 0, r_max, 0, TMath::Pi());
     cutoff_lorentzian->SetParameter(0, 1.0);
     cutoff_lorentzian->SetParameter(1, 2.0);
-    cutoff_lorentzian->SetLineColor(kBlue);
+    TF12 * cutoff_lorentzian12 = new TF12("cutoff_lorentzian12", cutoff_lorentzian, 0.0, "x");
+
+    cutoff_lorentzian12->SetLineColor(kBlue);
+    //cutoff12->GetHistogram()->GetXaxis()->SetTitle("Size of dipole r");
+    cutoff_lorentzian12->SetLineStyle(1);
+    cutoff_lorentzian12->SetLineWidth(3);
+    cutoff_lorentzian12->DrawCopy("same");
+    cutoff_lorentzian12->SetLineWidth(1);
+    cutoff_lorentzian12->SetXY(TMath::Pi()/3.0);
+    cutoff_lorentzian12->SetLineStyle(2);
+    cutoff_lorentzian12->DrawCopy("same");
+    cutoff_lorentzian12->SetXY(TMath::Pi()*2.0/3.0);
+    cutoff_lorentzian12->SetLineStyle(8);
+    cutoff_lorentzian12->DrawCopy("same");
+    cutoff_lorentzian12->SetXY(TMath::Pi());
+    cutoff_lorentzian12->SetLineStyle(9);
+    cutoff_lorentzian12->SetLineWidth(3);
+    cutoff_lorentzian12->DrawCopy("same"); 
+
     // Maxwellian cutoff
     TF2 * cutoff_maxwellian = new TF2("cutoff_maxwellian", "1 / (1 + exp([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y))))", 0, r_max, 0, TMath::Pi());
     cutoff_maxwellian->SetParameter(0, 1.0);
     cutoff_maxwellian->SetParameter(1, 2.0);
-    cutoff_maxwellian->SetLineColor(kBlack);
+
     // Heaviside
     TF2 * cutoff_rigid = new TF2("cutoff_rigid", "( (-1+x^2 -x*cos(y))> 0 ? 0.0 : 1.0) * y/y", 0, r_max, 0, TMath::Pi());
     //cutoff->SetParameter(0, 1.0);
     //cutoff->SetParameter(1, 2.0);
+    TF12 * cutoff_rigid12 = new TF12("cutoff_rigid12", cutoff_rigid, 0.0, "x");
 
-    cutoff->Draw(); 
-    cutoff_lorentzian->Draw("same"); 
+    cutoff_rigid12->SetLineColor(kBlack);
+    //cutoff12->GetHistogram()->GetXaxis()->SetTitle("Size of dipole r");
+    cutoff_rigid12->SetLineStyle(1);
+    cutoff_rigid12->SetLineWidth(3);
+    cutoff_rigid12->DrawCopy("same");
+    cutoff_rigid12->SetLineWidth(1);
+    cutoff_rigid12->SetXY(TMath::Pi()/3.0);
+    cutoff_rigid12->SetLineStyle(2);
+    cutoff_rigid12->DrawCopy("same");
+    cutoff_rigid12->SetXY(TMath::Pi()*2.0/3.0);
+    cutoff_rigid12->SetLineStyle(8);
+    cutoff_rigid12->DrawCopy("same");
+    cutoff_rigid12->SetXY(TMath::Pi());
+    cutoff_rigid12->SetLineStyle(9);
+    cutoff_rigid12->SetLineWidth(3);
+    cutoff_rigid12->DrawCopy("same");
+    
+    //cutoff_lorentzian->Draw("same"); 
 
+    
+    gPad->Update();
     myapp->Run();  
 }
 
@@ -48,7 +105,8 @@ void fit_bare_r(Double_t rho, Double_t max_y, TApplication * myapp)
     // Maxwellian cutoff
     //TF2 * cutoff = new TF2("cutoff", "1 / (1 + exp([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y))))", 0, TMath::Infinity(), 0, TMath::Pi());
     // Heaviside
-    TF2 * cutoff = new TF2("cutoff", "(x > (2*[0]) ? 0.0 : 1.0) * y/y", 0, TMath::Infinity(), 0, TMath::Pi());
+    //TF2 * cutoff = new TF2("cutoff", "(x > (2*[0]) ? 0.0 : 1.0) * y/y", 0, TMath::Infinity(), 0, TMath::Pi());
+    TF1 * cutoff = new TF1("cutoff", "(x > 2) ? 0.0 : 1.0", 0, TMath::Infinity());
     Event e2(rho, max_y, "lookup_table", cutoff, true, true);
     Event e3(rho, max_y, "lookup_table", cutoff, true, false);
 
