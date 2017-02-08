@@ -9,14 +9,14 @@
 # Launch interactive run
 # srun --ntasks=1 ./main 1
 
-#SBATCH --job-name=testGaussian
+#SBATCH --job-name=displit
 ##SBATCH --time=120  # max 120 minutes
 #SBATCH --account=small # 96 coeurs timelimit 10 jours
 #SBATCH --mail-user=laura.domine@polytechnique.edu --mail-type=ALL
 ## Pour reserver 1 coeur
 #SBATCH --ntasks=7
 #SBATCH --cpus-per-task=1
-##SBATCH --partition=interactive   // On force l'utilisation de la queue interactive.
+##SBATCH --partition=interactive
 
 
 module load root

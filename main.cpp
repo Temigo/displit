@@ -101,7 +101,9 @@ int main( int argc, char* argv[] )
         // Gaussian cutoff
         TF2 * cutoff_gaussian = new TF2("cutoff_gaussian", "exp(-[0] / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y)))", 0, TMath::Infinity(), 0, TMath::Pi());
         // Lorentzian cutoff
-        TF2 * cutoff_lorentzian = new TF2("cutoff_lorentzian", "1 / (1 + ([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y))))", 0, TMath::Infinity(), 0, TMath::Pi());
+        TF2 * cutoff_lorentzian1 = new TF2("cutoff_lorentzian1", "1 / (1 + ([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y))))", 0, TMath::Infinity(), 0, TMath::Pi());
+        TF2 * cutoff_lorentzian2 = new TF2("cutoff_lorentzian2", "1 / (1 + ([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y)))^2 )", 0, TMath::Infinity(), 0, TMath::Pi());
+        TF2 * cutoff_lorentzian3 = new TF2("cutoff_lorentzian3", "1 / (1 + ([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y)))^3 )", 0, TMath::Infinity(), 0, TMath::Pi());
         // Maxwellian cutoff
         //TF2 * cutoff = new TF2("cutoff", "1 / (1 + exp([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y))))", 0, TMath::Infinity(), 0, TMath::Pi());
         // Heaviside
@@ -115,7 +117,9 @@ int main( int argc, char* argv[] )
 
         std::map<std::string, TF1 *> cutoffs = {
             {"gaussian", cutoff_gaussian},
-            {"lorentzian", cutoff_lorentzian},
+            {"lorentzian1", cutoff_lorentzian1},
+            {"lorentzian2", cutoff_lorentzian2},
+            {"lorentzian3", cutoff_lorentzian3},
             {"rigid", cutoff_heaviside}
         };
         cutoffs[cutoff_type]->SetName("cutoff");
@@ -125,7 +129,7 @@ int main( int argc, char* argv[] )
             // Set up Filenames
             std::string s = "mpi_tree_" + std::to_string(nb_events) + "events_cutoff" + std::to_string(rho) + "_ymax" + std::to_string(max_y) + "_" + cutoff_type + ".root";
             const char * tree_file = s.c_str();
-            std::string s2 = "lookup_table_" + cutoff_type + "_cutoff" + std::to_string(rho);
+            std::string s2 = "lookup_table_" + cutoff_type + "_cutoff" + std::to_string(rho) + "_rank" + std::to_string(rank);
             const char * lut_file = s2.c_str();
 
             try
