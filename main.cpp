@@ -19,7 +19,7 @@
 
 Double_t heaviside(Double_t * x, Double_t * p)
 {
-    std::cerr << x[0] << " " << x[1] << std::endl;
+    //std::cerr << x[0] << " " << x[1] << std::endl;
     return (x[0] > 2 ? 0.0 : 1.0);
 }
 
@@ -68,6 +68,11 @@ int main( int argc, char* argv[] )
                 while (params >> nb_events >> rho >> max_y >> cutoff_type)
                 {
                     ++i;
+                    if (i >= size)
+                    {
+                        std::cout << "Warning : not enough processes. I stop reading parameters here." << std::endl;
+                        break;
+                    }
                     len = cutoff_type.length();
                     std::cout << "Sending to process " << i << std::endl;
                     MPI_Send(&len, 1, MPI_UNSIGNED, i, 0, MPI_COMM_WORLD);
@@ -79,7 +84,7 @@ int main( int argc, char* argv[] )
                 params.close();
             }            
         }
-        else
+        else // TODO fix it if process rank too big
         {
             unsigned int len;
             MPI_Recv(&len, 1, MPI_UNSIGNED, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
@@ -100,15 +105,15 @@ int main( int argc, char* argv[] )
         // Maxwellian cutoff
         //TF2 * cutoff = new TF2("cutoff", "1 / (1 + exp([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y))))", 0, TMath::Infinity(), 0, TMath::Pi());
         // Heaviside
-        TF2 * cutoff_heaviside = new TF2("cutoff_heaviside", heaviside, 0, TMath::Infinity(), 0, TMath::Pi(), 2);
-        //TF1 * cutoff = new TF1("cutoff", "(x > 2) ? 0.0 : 1.0", 0, TMath::Infinity());
+        //TF2 * cutoff_heaviside = new TF2("cutoff_heaviside", heaviside, 0, TMath::Infinity(), 0, TMath::Pi(), 2);
+        TF1 * cutoff_heaviside = new TF1("cutoff_heaviside", "(x > 2) ? 0.0 : 1.0", 0, TMath::Infinity());
         //std::cerr << cutoff->Eval(3, 2.5);
         //std::cerr << cutoff->Integral(0, 77, 0, TMath::Pi());
         //cutoff->SetParameter(0, 1.0);
         //cutoff->SetParameter(1, 2.0);
         //cutoff->Draw("surf2");
 
-        std::map<std::string, TF2 *> cutoffs = {
+        std::map<std::string, TF1 *> cutoffs = {
             {"gaussian", cutoff_gaussian},
             {"lorentzian", cutoff_lorentzian},
             {"rigid", cutoff_heaviside}
@@ -120,7 +125,7 @@ int main( int argc, char* argv[] )
             // Set up Filenames
             std::string s = "mpi_tree_" + std::to_string(nb_events) + "events_cutoff" + std::to_string(rho) + "_ymax" + std::to_string(max_y) + "_" + cutoff_type + ".root";
             const char * tree_file = s.c_str();
-            std::string s2 = "lookup_table_gaussian_cutoff10-" + std::to_string(rank);
+            std::string s2 = "lookup_table_" + cutoff_type + "_cutoff" + std::to_string(rho);
             const char * lut_file = s2.c_str();
 
             try
