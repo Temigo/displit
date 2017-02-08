@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 2.8)
 project(p3a)
 
+# Use MPI
+SET(CMAKE_CXX_COMPILER mpicxx)
 # Use C++11
 set (CMAKE_CXX_STANDARD 11)
 
@@ -33,5 +35,5 @@ target_link_libraries(graphics ${ROOT_LIBRARIES} event)
 target_include_directories(graphics PUBLIC include/ )
 
 add_executable(main main.cpp)
-target_link_libraries(main ${ROOT_LIBRARIES} utils graphics)
+target_link_libraries(main ${ROOT_LIBRARIES} utils graphics mpi)
 target_include_directories(main PUBLIC include/ )

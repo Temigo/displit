@@ -28,7 +28,7 @@ void sig_to_exception(int s)
 }
 
 // Generate *nb_events* events with same parameters rho and max_y
-void generate_events(int nb_events, Double_t rho, Double_t max_y, bool with_cutoff, TF1 * cutoff, bool raw_cutoff, const char * tree_file)
+void generate_events(int nb_events, Double_t rho, Double_t max_y, bool with_cutoff, TF1 * cutoff, bool raw_cutoff, const char * tree_file, const char * lut_file)
 {
     // Handle interrupt Ctrl-C
     struct sigaction sigIntHandler;
@@ -43,7 +43,7 @@ void generate_events(int nb_events, Double_t rho, Double_t max_y, bool with_cuto
     int current_index;
     try
     {
-        Event e(rho, max_y, "lookup_table", cutoff, with_cutoff, raw_cutoff);
+        Event e(rho, max_y, lut_file, cutoff, with_cutoff, raw_cutoff);
         e.WriteLookupTable(); // in case the cutoff changed
         for (int j = 0; j < nb_events; ++j)
         {

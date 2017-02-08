@@ -14,6 +14,7 @@
 #include <sstream>
 #include <iostream>
 #include <RooStats/Heaviside.h>
+#include <mpi.h>
 
 Double_t heaviside(Double_t * x, Double_t * p)
 {
@@ -32,7 +33,7 @@ int main( int argc, char* argv[] )
     std::istringstream iss( argv[1] );
     //std::istringstream iss2 ( argv[2] );
     int val = 0; // By default only read file
-    char * tree_file = argv[2];
+    //char * tree_file = argv[2];
     int nb_events = 10; // Number of events to read/generate
     Double_t rho = 0.01;
     Double_t max_y = 3.0;
@@ -46,11 +47,19 @@ int main( int argc, char* argv[] )
 
     if (val)
     {
-        std::cerr << tree_file << std::endl;
+        int rank, size; // rank of the process and number of processes
+        MPI_Init(NULL, NULL);
+
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+        std::cerr << "I am process " << rank << std::endl;
+        if (rank == 0) std::cerr << size << " processes" << std::endl;
+        //std::cerr << tree_file << std::endl;
         // Gaussian cutoff
-        //TF2 * cutoff = new TF2("cutoff", "exp(-[0] / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y)))", 0, TMath::Infinity(), 0, TMath::Pi());
+        TF2 * cutoff = new TF2("cutoff", "exp(-[0] / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y)))", 0, TMath::Infinity(), 0, TMath::Pi());
         // Lorentzian cutoff
-        TF2 * cutoff = new TF2("cutoff", "1 / (1 + ([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y))))", 0, TMath::Infinity(), 0, TMath::Pi());
+        //TF2 * cutoff = new TF2("cutoff", "1 / (1 + ([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y))))", 0, TMath::Infinity(), 0, TMath::Pi());
         // Maxwellian cutoff
         //TF2 * cutoff = new TF2("cutoff", "1 / (1 + exp([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y))))", 0, TMath::Infinity(), 0, TMath::Pi());
         // Heaviside
@@ -61,15 +70,28 @@ int main( int argc, char* argv[] )
         //cutoff->SetParameter(0, 1.0);
         //cutoff->SetParameter(1, 2.0);
         //cutoff->Draw("surf2");
-        try
+
+        if (rank >= 2 && rank <= 6)
         {
-           generate_events(nb_events, rho, max_y, true, cutoff, false, tree_file);
-        }
-        catch (...)
-        {
-            return EXIT_FAILURE;
+            rho = TMath::Power(10, - rank);
+            std::cerr << "Rank : " << rank << " with rho " << rho << std::endl;
+        
+            std::string s = "mpi_tree_" + std::to_string(nb_events) + "events_cutoff10-" + std::to_string(rank) + "_ymax" + std::to_string(max_y) + "_gaussian.root";
+            const char * tree_file = s.c_str();
+            std::string s2 = "lookup_table_gaussian_cutoff10-" + std::to_string(rank);
+            const char * lut_file = s2.c_str();
+            try
+            {
+                generate_events(nb_events, rho, max_y, true, cutoff, false, tree_file, lut_file);
+            }
+            catch (...)
+            {
+                return EXIT_FAILURE;
+            }
         }
         delete cutoff;
+
+        MPI_Finalize();
     }
 
     // General fit
