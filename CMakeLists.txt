@@ -14,6 +14,9 @@ include(${ROOT_USE_FILE})
 #find_package(GSL REQUIRED)
 #include_directories(${GSL_INCLUDE_DIRS})
 
+add_library(globals globals.cpp)
+target_include_directories(globals PUBLIC include/ )
+
 add_library(EventTree EventTree.C)
 target_link_libraries(EventTree ${ROOT_LIBRARIES})
 target_include_directories(EventTree PUBLIC include/ )
@@ -23,11 +26,11 @@ target_link_libraries(dipole ${ROOT_LIBRARIES})
 target_include_directories(dipole PUBLIC include/ )
 
 add_library(event event.cpp)
-target_link_libraries(event ${ROOT_LIBRARIES} dipole)
+target_link_libraries(event ${ROOT_LIBRARIES} dipole globals)
 target_include_directories(event PUBLIC include/ )
 
 add_library(utils utils.cpp)
-target_link_libraries(utils ${ROOT_LIBRARIES} event EventTree)
+target_link_libraries(utils ${ROOT_LIBRARIES} event EventTree globals)
 target_include_directories(utils PUBLIC include/ )
 
 add_library(graphics graphics.cpp)

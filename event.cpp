@@ -2,6 +2,7 @@
  * Temigo
  */
 #include "event.h"
+#include "globals.h"
 
 #include <stdio.h>
 #include <TF1.h>
@@ -42,7 +43,7 @@ double IntegralFunction::operator() (double * x, double * p) const
         function->SetParameter(0, p[0]);
         //TF12 f12(name, function, *x, "y");
         f12->SetXY(*x);
-        //std::cerr << function->GetNumberFreeParameters() << std::endl;
+        //std::cout << function->GetNumberFreeParameters() << std::endl;
         return f12->Integral(phi(*x), TMath::Pi());
     }
 }
@@ -57,7 +58,7 @@ Event::Event(Double_t rho, Double_t max_y, const char * lut_filename, TF1 * f, b
 {
     if (WITH_CUTOFF && cutoff == NULL)
     {
-        std::cerr << "[event.cpp] Error initializing event : cutoff undefined." << std::endl;
+        std::cout << "[event.cpp] Error initializing event : cutoff undefined." << std::endl;
     }
     if (WITH_CUTOFF && cutoff != NULL)
     {
@@ -170,7 +171,7 @@ Double_t Event::r_generate(Double_t x01, bool display_cutoff)
             result = 1. / TMath::Sqrt(TMath::Exp((1. - R) * TMath::Log(1. + 1. /(rho2 * rho2)))- 1.);
             temp = gRandom->Uniform(0., 1.);
         }
-        //if (result > 10) std::cerr << "Big r : " << result << std::endl;
+        //if (result > 10) std::cout << "Big r : " << result << std::endl;
         return result;
     }
     else
@@ -205,11 +206,11 @@ Double_t Event::theta(Double_t r, Double_t x01)
         TF2 g_theta("g_theta", " 1/(1. + x^2 - 2. * x * cos(y)) * cutoff", 0.0, TMath::Infinity(), phi(r), TMath::Pi());
         g_theta.SetParameter(0, x01);
         //g_theta.SetParameter(2, f_cutoff->Eval(r));
-        //std::cerr << phi(r) << std::endl;
+        //std::cout << phi(r) << std::endl;
         TF12 g_theta12("g_theta12", &g_theta, r, "y");
-        //std::cerr << g_theta12.GetRandom(phi(r), TMath::Pi()) << std::endl;
+        //std::cout << g_theta12.GetRandom(phi(r), TMath::Pi()) << std::endl;
         //g_theta12.DrawF1(phi(r), TMath::Pi());
-        //std::cerr << r << " " << x01 << std::endl;
+        //std::cout << r << " " << x01 << std::endl;
         //TCanvas C2("C2", "C2", 0, 0, 2000, 1000);
         /*TH1D hist("hist_g2", "hist_g2", 100, 0, TMath::Pi());       
         for (int i = 0; i < 500000 ; ++i)
@@ -283,7 +284,7 @@ void Event::WriteLookupTable()
     // We shouldn't need to go under the cutoff rho for small sizes
     Double_t step = 0.0000000000000000000000000000001;
     Double_t l;
-    std::cerr << "Writing lookup table... ";
+    std::cout << "Writing lookup table... ";
     std::ofstream lut(lut_filename);
     if (lut.is_open())
     {
@@ -297,14 +298,14 @@ void Event::WriteLookupTable()
         }
         lut.close();
     }
-    std::cerr << "Done." << std::endl;
+    std::cout << "Done." << std::endl;
 }
 
 /* Loads the lookup table from __filename__ and put it into Interpolator
  */
 void Event::LoadLookupTable()
 {
-    std::cerr << "Reading lookup table..." << std::endl;
+    std::cout << "Reading lookup table..." << std::endl;
     std::ifstream lut(lut_filename);
     Double_t rho_lut;
     bool cutoff;
@@ -314,8 +315,8 @@ void Event::LoadLookupTable()
         lut >> rho_lut >> cutoff;
         if (rho_lut != rho || cutoff != WITH_CUTOFF)
         {
-            if (rho_lut != rho) std::cerr << RED << "Warning : rho is not the same in the Lookup Table. Rebuilding it..." << RESET << " \n Old rho : " << rho_lut << std::endl;
-            if (cutoff != WITH_CUTOFF) std::cerr << RED << "Warning : WITH_CUTOFF differs in the Lookup Table. Rebuilding it..." << RESET << " \n Old WITH_CUTOFF : " << cutoff << std::endl;
+            if (rho_lut != rho) std::cout << RED << "Warning : rho is not the same in the Lookup Table. Rebuilding it..." << RESET << " \n Old rho : " << rho_lut << std::endl;
+            if (cutoff != WITH_CUTOFF) std::cout << RED << "Warning : WITH_CUTOFF differs in the Lookup Table. Rebuilding it..." << RESET << " \n Old WITH_CUTOFF : " << cutoff << std::endl;
             lut.close();
             WriteLookupTable();
             lut.clear();
@@ -334,17 +335,17 @@ void Event::LoadLookupTable()
     interpolator.SetData(x01, l);
     x01_min = x01.front();
     x01_max = x01.back();
-    std::cerr << "\033[1;32m Done. \033[0m" << std::endl;
+    std::cout << "\033[1;32m Done. \033[0m" << std::endl;
 }
 
 void Event::PrintLookupTable()
 {
-    std::cerr << "Printing lookup table..." << std::endl;
+    std::cout << "Printing lookup table..." << std::endl;
     for (auto const& x: lookup_table)
     {
-        std::cerr << x.first << " " << x.second << std::endl;
+        std::cout << x.first << " " << x.second << std::endl;
     }
-    std::cerr << "done." << std::endl;    
+    std::cout << "done." << std::endl;    
 }
 
 void Event::SetInterpolatorData()
@@ -367,11 +368,11 @@ Double_t Event::getLambda(Double_t x01)
     // Interpolate
     if (x01_min > x01)
     {
-        std::cerr << RED << "Warning : x01 out of lookup table range (lower values). This is not supposed to happen !" << RESET << std::endl;
+        std::cout << RED << "Warning : x01 out of lookup table range (lower values). This is not supposed to happen !" << RESET << std::endl;
     }
     if (x01 > x01_max)
     {
-        std::cerr << RED << "Warning : x01 out of lookup table range (upper values)." << RESET << " \n Adding entry for " << x01 << std::endl;
+        std::cout << RED << "Warning : x01 out of lookup table range (upper values)." << RESET << " \n Adding entry for " << x01 << std::endl;
         // Add new points permanently in the LUT
         Double_t x01_from = x01_max;
         int p = TMath::Floor(TMath::Log10(x01_from));
@@ -389,7 +390,7 @@ Double_t Event::getLambda(Double_t x01)
                 lookup_table.insert(std::pair<Double_t, Double_t>(x01_from, l));
                 lut << x01_from << " " << l << "\n";
                 ++i;
-                std::cerr << x01_from << " " << l << std::endl;
+                std::cout << x01_from << " " << l << std::endl;
             }
             lut.close();
         }
@@ -452,7 +453,7 @@ bool Event::generate(Dipole * dipole, Dipole * dipole1, Dipole * dipole2, Double
         cutoff->SetParameter(0, dipole->radius);
         while(temp > cutoff->Eval(r, t))
         {
-            //std::cerr << temp << std::endl;
+            //std::cout << temp << std::endl;
             r = r_generate(dipole->radius);
             t = theta(r, dipole->radius);
             temp = gRandom->Uniform(0.0, 1.0);
@@ -496,7 +497,7 @@ bool Event::generate(Dipole * dipole, Dipole * dipole1, Dipole * dipole2, Double
     TVector2 temp = dipole2->coord - TVector2(1, 0);
     dipole2->phi = dipole2->coord.Phi_0_2pi(temp.Phi());
     dipole2->radius = temp.Mod();
-    //std::cerr << dipole1->phi << " " << dipole2->phi << std::endl;
+    //std::cout << dipole1->phi << " " << dipole2->phi << std::endl;
     
     // Exchange
     if (gd < 0.5)
@@ -540,7 +541,7 @@ bool Event::generate(Dipole * dipole, Dipole * dipole1, Dipole * dipole2, Double
     dipole1->radius *= 2;
     dipole2->radius *= 2;
 
-    if (dipole1->radius < rho || dipole2->radius < rho) std::cerr << dipole1->radius << " " << dipole2->radius << std::endl;
+    if (dipole1->radius < rho || dipole2->radius < rho) std::cout << dipole1->radius << " " << dipole2->radius << std::endl;
     return true;
 }
 
@@ -565,13 +566,10 @@ void Event::make_tree(TTree * tree, bool draw_dipole, bool draw_step_by_step)
     //tree->Branch("depth", &dipole.depth, "depth/L");
     //tree->Branch("index_children", &dipole.index_children, "index_children/L");
     //tree->Branch("index_parent", &dipole.index_parent, "index_parent/L");
-    
 
     int i = 0;
     Long64_t index = -1; // index of the dipole at current depth
 
-    TCanvas C("C", "C", 0, 0, 3000, 2000);
-    C.cd(1);
     if (draw_dipole || draw_step_by_step)
     {
         gPad->DrawFrame(-1.0, -1, 2.0, 1.0, TString::Format("#splitline{Dipole splitting - rho = %.12g}{rapidity maximum = %.12g}", rho, max_y));        
@@ -605,7 +603,7 @@ void Event::make_tree(TTree * tree, bool draw_dipole, bool draw_step_by_step)
             }
             else
             {
-                std::cerr << "Warning : overflow on index value" << std::endl;
+                std::cout << "Warning : overflow on index value" << std::endl;
                 break;
             }
         }
@@ -614,7 +612,7 @@ void Event::make_tree(TTree * tree, bool draw_dipole, bool draw_step_by_step)
         dipole.nb_right_brothers = current_depth_dipoles - index - 1;
 
         Long64_t children_index = dipole.index + dipole.nb_right_brothers + 2 * dipole.nb_left_brothers_split + 1;
-        //std::cerr << dipole.index << " " << dipole.nb_left_brothers_split << " " << dipole.nb_right_brothers << " " << children_index << std::endl;
+        //std::cout << dipole.index << " " << dipole.nb_left_brothers_split << " " << dipole.nb_right_brothers << " " << children_index << std::endl;
         
         Dipole dipole1(dipole.depth + 1, children_index), 
                dipole2(dipole.depth + 1, children_index + 1);
@@ -639,7 +637,7 @@ void Event::make_tree(TTree * tree, bool draw_dipole, bool draw_step_by_step)
         }
                   
         // FIXME for some reason the raw values differ slightly from the tree scan ! 
-        //std::cerr << dipole1.radius << " " << dipole1.coord.X() << " " << dipole1.coord.Y() <<  std::endl;
+        //std::cout << dipole1.radius << " " << dipole1.coord.X() << " " << dipole1.coord.Y() <<  std::endl;
         ++i;
         tree->Fill(); // Stores dipole (parent)
         // if step by step
@@ -647,19 +645,19 @@ void Event::make_tree(TTree * tree, bool draw_dipole, bool draw_step_by_step)
         {
             gPad->Modified();
             gPad->Update();
-            C.WaitPrimitive();
+            gPad->WaitPrimitive();
             std::cin.ignore(); // Wait for keypress before continuing
         }
-        std::cerr << "\r" << i << " dipôles générés";
+        if (DEBUG) std::cout << "\r" << i << " dipôles générés";
     }
     if (draw_dipole || draw_step_by_step) 
     {
-        C.Update();
+        gPad->Update();
         char c;
         std::cin>>c;
     }
 
-    std::cerr << std::endl;
+    if (DEBUG) std::cout << std::endl;
 
     /*TVector * v = new TVector(2);
     //v->SetName("simulation_parameters");
@@ -721,7 +719,7 @@ void Event::generate_normalized(Double_t * x, Double_t * y, Double_t * rapidity)
         *x = 1.0 - r * TMath::Cos(t);
         *y = - r * TMath::Sin(t);            
     }
-    //std::cerr << *x << " " << *y << std::endl;
+    //std::cout << *x << " " << *y << std::endl;
 }
 
 // Test one generation : visualize probability distribution of the gluon at splitting
@@ -759,7 +757,7 @@ void Event::bare_distribution()
             std::cin.ignore();
         }
         if (y[i] > (hist_y - margin) && y[i] < (hist_y + margin)) hist.Fill(x[i]);
-        //std::cerr << i << " " << x[i] << " " << y[i] << std::endl;
+        //std::cout << i << " " << x[i] << " " << y[i] << std::endl;
     }
     C.Update();
 
@@ -788,7 +786,7 @@ void Event::bare_distribution()
     hist.Fit("p", "R");
 
     Double_t chi2 = p.GetChisquare();
-    std::cerr << "Chi2 value : " << chi2 << std::endl;  */ 
+    std::cout << "Chi2 value : " << chi2 << std::endl;  */ 
 }
 
 void Event::fit_r()
