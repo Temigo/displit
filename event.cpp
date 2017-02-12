@@ -41,7 +41,6 @@ double IntegralFunction::operator() (double * x, double * p) const
     else
     {
         function->SetParameter(0, p[0]);
-        //TF12 f12(name, function, *x, "y");
         f12->SetXY(*x);
         //std::cout << function->GetNumberFreeParameters() << std::endl;
         return f12->Integral(phi(*x), TMath::Pi());
@@ -67,22 +66,12 @@ Event::Event(Double_t rho, Double_t max_y, const char * lut_filename, TF1 * f, b
         integrand = new TF2("integrand", "cutoff / (x * (1. + x^2 - 2. * x * cos(y)))", 0.0, TMath::Infinity(), 0, TMath::Pi());   
         integralFunction = new IntegralFunction(integrand, "f_cutoff");
         f_cutoff = new TF1("f_cutoff", integralFunction, 0.0 , TMath::Infinity(), 1);
-        f_cutoff->SetNpx(50); // FIXME Npx value
-        
-        /*f_cutoff->SetParameter(0, 1);
-        f_cutoff->Draw();
-        gPad->SetLogy();
-            gPad->Update();
-            char c;
-            std::cin>>c;*/        
+        f_cutoff->SetNpx(50); // FIXME Npx value      
     }    
 }
 
 Event::~Event()
 {
-    /*delete f_cutoff;
-    delete integralFunction;
-    delete integrand;*/
 }
 
 Double_t Event::f(Double_t * x, Double_t * parameters)
@@ -160,7 +149,6 @@ Double_t Event::r_generate(Double_t x01, bool display_cutoff)
         }
 
         // Get random following f_cutoff distribution using rejection sampling
-        //return f_cutoff->GetRandom(0.0001, 100);
         Double_t rho2 = rho / x01;
         Double_t R = gRandom->Uniform(0., 1.);
         Double_t result = 1. / TMath::Sqrt(TMath::Exp((1. - R) * TMath::Log(1. + 1. /(rho2 * rho2)))- 1. );
@@ -171,7 +159,6 @@ Double_t Event::r_generate(Double_t x01, bool display_cutoff)
             result = 1. / TMath::Sqrt(TMath::Exp((1. - R) * TMath::Log(1. + 1. /(rho2 * rho2)))- 1.);
             temp = gRandom->Uniform(0., 1.);
         }
-        //if (result > 10) std::cout << "Big r : " << result << std::endl;
         return result;
     }
     else
@@ -183,7 +170,6 @@ Double_t Event::r_generate(Double_t x01, bool display_cutoff)
         Double_t temp = gRandom->Uniform(0., 1.);
         while (temp > f(&result) / g(result) )//* 3. / (5. * TMath::Pi()))
         {
-            //result = g->GetRandom();
             R = gRandom->Uniform(0., 1.);
             result = 1. / TMath::Sqrt(TMath::Exp((1. - R) * TMath::Log(1. + 1. /(rho2 * rho2)))- 1.);
             temp = gRandom->Uniform(0., 1.);
@@ -198,36 +184,12 @@ Double_t Event::theta(Double_t r, Double_t x01)
     gRandom->SetSeed();
     if (WITH_CUTOFF && RAW_CUTOFF)
     {
-        //f_cutoff->SetParameter(0, x01);
-        // FIXME global g_theta
         // FIXME r range for g_theta : begin at rho ?
         // FIXME is proportional factor important here ?
         //TF2 g_theta("g_theta", "1/[2] * 1/(x * (1. + x^2 - 2. * x * cos(y))) * cutoff", 0.0, TMath::Infinity(), 0.0, TMath::Pi());
         TF2 g_theta("g_theta", " 1/(1. + x^2 - 2. * x * cos(y)) * cutoff", 0.0, TMath::Infinity(), phi(r), TMath::Pi());
         g_theta.SetParameter(0, x01);
-        //g_theta.SetParameter(2, f_cutoff->Eval(r));
-        //std::cout << phi(r) << std::endl;
         TF12 g_theta12("g_theta12", &g_theta, r, "y");
-        //std::cout << g_theta12.GetRandom(phi(r), TMath::Pi()) << std::endl;
-        //g_theta12.DrawF1(phi(r), TMath::Pi());
-        //std::cout << r << " " << x01 << std::endl;
-        //TCanvas C2("C2", "C2", 0, 0, 2000, 1000);
-        /*TH1D hist("hist_g2", "hist_g2", 100, 0, TMath::Pi());       
-        for (int i = 0; i < 500000 ; ++i)
-        {
-            hist.Fill(g_theta12.GetRandom(0.0, TMath::Pi()));
-        }
-        hist.Draw("E1 same");  
-        TF2 g_theta2("g_theta2", "[2] * 1/[1] * 1/(x * (1. + x^2 - 2. * x * cos(y))) * cutoff", 0.0, TMath::Infinity(), 0.0, TMath::Pi());
-        g_theta2.SetParameter(0, x01);
-        g_theta2.SetParameter(1, f_cutoff->Eval(r));
-        TF12 g_theta122("g_theta122", &g_theta, r, "y");     
-        //g_theta122.Draw();
-        hist.Fit("g_theta122", "R");
-
-        gPad->Update();
-        char c;
-        std::cin>>c;    */
         return g_theta12.GetRandom(phi(r), TMath::Pi());
     }
     else
@@ -410,6 +372,7 @@ Double_t Event::y_generate(Double_t x01)
     return -1. / lbda * TMath::Log(1. - lbda * R);
 }
 
+// To be used in tests - incorporates the cutoff directly
 Double_t Event::r_generate2(Double_t x01)
 {
     gRandom->SetSeed();
@@ -425,19 +388,13 @@ Double_t Event::r_generate2(Double_t x01)
     } 
     return r;   
 }
+
 // Draw a single gluon with an ellipse
 void Event::draw(Double_t x, Double_t y, Double_t rapidity)
 {
     TEllipse ellipse(x, y, 0.005 , 0.005);
     ellipse.SetFillColor(kCyan + (int) TMath::Ceil(10. * rapidity));
     ellipse.Draw();
-}
-
-void Event::draw_tree(TTree * tree)
-{
-    //TFile * f = new TFile("tree.root");
-    //tree->MakeClass("");
-    //tree->Draw("rapidity", "", "");
 }
 
 bool Event::generate(Dipole * dipole, Dipole * dipole1, Dipole * dipole2, Double_t max_y)
@@ -453,16 +410,10 @@ bool Event::generate(Dipole * dipole, Dipole * dipole1, Dipole * dipole2, Double
         cutoff->SetParameter(0, dipole->radius);
         while(temp > cutoff->Eval(r, t))
         {
-            //std::cout << temp << std::endl;
             r = r_generate(dipole->radius);
             t = theta(r, dipole->radius);
             temp = gRandom->Uniform(0.0, 1.0);
         }
-        /*while (r > 2)
-        {
-            r = r_generate(dipole->radius);
-            t = theta(r, dipole->radius);            
-        }*/
     }
 
     Double_t rapidity = y_generate(dipole->radius);   
@@ -497,7 +448,6 @@ bool Event::generate(Dipole * dipole, Dipole * dipole1, Dipole * dipole2, Double
     TVector2 temp = dipole2->coord - TVector2(1, 0);
     dipole2->phi = dipole2->coord.Phi_0_2pi(temp.Phi());
     dipole2->radius = temp.Mod();
-    //std::cout << dipole1->phi << " " << dipole2->phi << std::endl;
     
     // Exchange
     if (gd < 0.5)
@@ -533,7 +483,6 @@ bool Event::generate(Dipole * dipole, Dipole * dipole1, Dipole * dipole2, Double
 
     // Translation
     TVector2 translation_vector = dipole->coord - TVector2(dipole->radius/2., 0.0);
-    //translation_vector.Print();
     dipole1->coord += translation_vector;
     dipole2->coord += translation_vector;
 
@@ -545,7 +494,6 @@ bool Event::generate(Dipole * dipole, Dipole * dipole1, Dipole * dipole2, Double
     return true;
 }
 
-//const char * treename = "T"
 void Event::make_tree(TTree * tree, bool draw_dipole, bool draw_step_by_step)
 {
     gRandom->SetSeed(); // /!\ IMPORTANT or we always get the same values

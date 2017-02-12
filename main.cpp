@@ -16,34 +16,58 @@
 #include <RooStats/Heaviside.h>
 #include <mpi.h>
 #include <fstream>
+#include <regex>
 
 Double_t heaviside(Double_t * x, Double_t * p)
 {
-    //std::cerr << x[0] << " " << x[1] << std::endl;
     return (x[0] > 2 ? 0.0 : 1.0);
+}
+
+std::string encode_parameters(int nb_events, Double_t rho, Double_t max_y, std::string cutoff_type)
+{
+    return "mpi_tree_" + std::to_string(nb_events) + "events_cutoff" + std::to_string(rho) + "_ymax" + std::to_string(max_y) + "_" + cutoff_type + ".root";
+}
+
+void decode_parameters(std::string filename, Double_t * rho, Double_t * max_y, std::string * cutoff_type)
+{
+    std::string double_regex = "[-+]?[0-9]*\.?[0-9]+";
+    std::regex r("mpi_tree_([[:digit:]]+)events_cutoff("+double_regex+")_ymax("+double_regex+")_(\\w+).root");
+    std::smatch m;
+    if (std::regex_match(filename, m, r))
+    {
+        *rho = std::stod(m[2]);
+        *max_y = std::stod(m[3]);
+        *cutoff_type = m[4];
+    }
+    else
+    {
+        std::cout << "no match" << std::endl;
+    }
 }
 
 int main( int argc, char* argv[] )
 {
-    TApplication * myapp = new TApplication("myapp", &argc, argv);
+    //TApplication * myapp = new TApplication("myapp", &argc, argv);
+    TApplication * myapp = new TApplication("myapp", NULL, NULL); // do not pass command line arguments to ROOT
     gRandom = new TRandom3(0);
+    std::string val;
 
-    std::istringstream iss( argv[1] );
-    //std::istringstream iss2 ( argv[2] );
-    int val = 0; // By default only read file
-    //char * tree_file = argv[2];
-
-    /*std::vector<std::tuple<int, Double_t, Double_t, std::string > > parameters = {
-        std::make_tuple(0, 0.01, 2.0, "gaussian"),
-    };*/
-
-    if (!(iss >> val))
+    if (argc <= 1)
     {
         std::cerr << "Not valid argument." << std::endl;
         return EXIT_FAILURE;
     }
+    else
+    {
+        val = argv[1];
+    }
 
-    if (val)
+    if (val == "-h" || val == "--help")
+    {
+        std::cout << "Usage: ./main generate | fluctuations | fit-bare-r [rho] [max_y] | ancestors [nb_events] [rho] [max_y] | draw-cutoffs" << std::endl;
+        std::cout << "Options: \n \t --help : Print usage" << std::endl;
+    }
+    else if (val == "generate")
     {
         int rank, size; // rank of the process and number of processes
         MPI_Init(NULL, NULL);
@@ -61,7 +85,6 @@ int main( int argc, char* argv[] )
         {
             std::cerr << size << " processes" << std::endl;
             std::ifstream params("parameters");
-            std::cout << "Hi";
             if (params.is_open())
             {
                 int i = 0;
@@ -86,7 +109,6 @@ int main( int argc, char* argv[] )
         }
         else // TODO fix it if process rank too big
         {
-            unsigned int len;
             MPI_Recv(&len, 1, MPI_UNSIGNED, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             std::vector<char> cutoff_type_temp(len);
             MPI_Recv(&nb_events, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
@@ -127,7 +149,7 @@ int main( int argc, char* argv[] )
         if (rank > 0)
         {
             // Set up Filenames
-            std::string s = "mpi_tree_" + std::to_string(nb_events) + "events_cutoff" + std::to_string(rho) + "_ymax" + std::to_string(max_y) + "_" + cutoff_type + ".root";
+            std::string s = encode_parameters(nb_events, max_y, rho, cutoff_type);
             const char * tree_file = s.c_str();
             std::string s2 = "lookup_table_" + cutoff_type + "_cutoff" + std::to_string(rho) + "_rank" + std::to_string(rank);
             const char * lut_file = s2.c_str();
@@ -142,18 +164,96 @@ int main( int argc, char* argv[] )
             }
         }
         delete cutoff_gaussian;
-        delete cutoff_lorentzian;
+        delete cutoff_lorentzian1;
+        delete cutoff_lorentzian2;
+        delete cutoff_lorentzian3;
         delete cutoff_heaviside;
 
         MPI_Finalize();
     }
+    else if (val == "fluctuations")
+    {
+        int rank, size; // rank of the process and number of processes
+        MPI_Init(NULL, NULL);
 
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+        std::string filename;
+        unsigned int len;
+
+        if (rank == 0)
+        {
+            std::cerr << size << " processes" << std::endl;
+            std::ifstream files("files");
+            if (files.is_open())
+            {
+                int i = 0;
+                while (files >> filename)
+                {
+                    ++i;
+                    if (i >= size)
+                    {
+                        std::cout << "Warning : not enough processes. I stop reading filenames here." << std::endl;
+                        break;
+                    }
+                    len = filename.length();
+                    std::cout << "Sending to process " << i << std::endl;
+                    MPI_Send(&len, 1, MPI_UNSIGNED, i, 0, MPI_COMM_WORLD);
+                    MPI_Send(filename.c_str(), filename.length(), MPI_CHAR, i, 0, MPI_COMM_WORLD);
+                }
+                files.close();
+            }            
+        }
+        else // TODO fix it if process rank too big
+        {
+            MPI_Recv(&len, 1, MPI_UNSIGNED, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            std::vector<char> filename_temp(len);
+            MPI_Recv(filename_temp.data(), len, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            filename.assign(filename_temp.begin(), filename_temp.end());
+            std::cout << "Process " << rank << " with " << filename << std::endl;
+        }
+        MPI_Barrier(MPI_COMM_WORLD);
+
+        if (rank > 0)
+        {
+            std::string filename_hist = filename + "hist";
+            Double_t max_y, rho;
+            std::string cutoff_type;
+            decode_parameters(filename, &rho, &max_y, &cutoff_type);
+            Double_t r = 0.05;
+            fluctuations(max_y, 1.0, rho, r, filename.c_str(), filename_hist.c_str(), true);
+        }
+
+        MPI_Finalize();
+    }
+    else if (val == "decode")
+    {
+        Double_t max_y, x01, rho;
+        std::string cutoff_type;
+        decode_parameters("mpi_tree_1events_cutoff0.010000_ymax2.000000_rigid.root", &rho, &max_y, &cutoff_type);
+        std::cout << cutoff_type << " " << max_y << " " << rho << std::endl;
+    }
+    else if (val == "fit-bare-r")
+    {
+        Double_t rho = std::stod(argv[2]);
+        Double_t max_y = std::stod(argv[3]);
+        fit_bare_r(rho, max_y, myapp);
+    }
+    else if (val == "ancestors")
+    {
+        int nb_events = std::stoi(argv[2]);
+        Double_t rho = std::stoi(argv[3]);
+        Double_t max_y = std::stoi(argv[4]);
+        CommonAncestorPlot(myapp, nb_events, max_y, 1.0, rho);
+    }
+    else if (val == "draw-cutoffs")
+    {
+        draw_cutoffs(myapp);
+    }
     // General fit
     //general_plot(myapp);
     //stat_events(myapp, max_y, 1.0);
-    //CommonAncestorPlot(myapp, nb_events, max_y, 1.0, rho);
-    //fluctuations(myapp, nb_events, max_y, 1.0, rho);
-    //draw_cutoffs(myapp);
 
     // Compute biggest children
     /*TFile f("tree.root");
@@ -162,26 +262,7 @@ int main( int argc, char* argv[] )
     //tree->MakeClass("EventTree");
     compute_biggest_child(tree, myapp);*/
 
-
-
-    //Event e(rho, max_y, "lookup_table");
-    //e->WriteLookupTable("lookup_table");
-    //e->LoadLookupTable();
-    //e->PrintLookupTable();
-    //std::cerr << e.getLambda(35) << std::endl;
-    //e.make_tree("tree", false);
-    //e.bare_distribution();
-    /*Double_t r = e.r_generate(true);
-    std::cerr << r << std::endl;
-    std::cerr << e.theta(r) << std::endl;
-    std::cerr << e.lambda(1.0) << std::endl;*/
-    //e.fit_r();
-    //e.theta(1.0, 0.02);
-
     //myapp->Run();
-    //delete cutoff;
-
-    //fit_bare_r(rho, max_y, myapp);
     
     delete myapp;
     return EXIT_SUCCESS;

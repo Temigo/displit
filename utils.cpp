@@ -56,11 +56,11 @@ void generate_events(int nb_events, Double_t rho, Double_t max_y, bool with_cuto
             if (j%1000 == 0)
             {
                 output = tree->GetCurrentFile();
-                output->Write();
+                output->Write(0,TObject::kOverwrite);
             }
         }
         // output = tree->GetCurrentFile() ??
-        output->Write();
+        output->Write(0,TObject::kOverwrite);
         output->Close();
         std::cout << "Generated and saved " << nb_events << " events in " << tree_file << std::endl;
     }
@@ -81,24 +81,47 @@ void generate_events(int nb_events, Double_t rho, Double_t max_y, bool with_cuto
 * = probability to have n dipoles of size >= r from a dipole of size x01 until
 * rapidity y_max
 */
-void fluctuations(TApplication * myapp, int nb_events, Double_t max_y, Double_t x01, Double_t rho)
+void fluctuations(Double_t max_y, Double_t x01, Double_t rho, Double_t r, 
+                  const char * filename, 
+                  const char * filename_hist, 
+                  bool with_cutoff)
 {
-    Double_t r = 0.05;
     bool logX = false;
+    
+    TFile histogram(filename_hist, "RECREATE");
 
-    TCanvas c;
-
-    c.cd(1);
-    if (logX) gPad->SetLogx();
-    gPad->SetLogy();
-    TH1F * hfluct = new TH1F("hfluct", TString::Format("#splitline{Fluctuations over %d events}{with y_max = %.12g, r = %.12g and rho = %.12g}", nb_events, max_y, r, rho), 100, 0, 0);
+    TH1F * hfluct = new TH1F("hfluct", "title", 100, 0, 0);
     hfluct->GetXaxis()->SetTitle("Number of events n(r, x01, y_max)");
     hfluct->GetYaxis()->SetTitle("p_n(r, x01, y)");
     if (logX) BinLogX2(hfluct, 100);
 
-    TFile f("tree.root");
+    // Get List of trees independently (in case it was aborted before nb_events)
+    TFile f(filename, "READ");
+    //f.ls();
+    TList * list = f.GetListOfKeys();
+    TIter iter(list->MakeIterator());
+    int nb_events = 0;
+    while(TObject * obj = iter())
+    {
+        TKey * theKey = (TKey*) obj;
+        TString className = theKey->GetClassName();
+        if (className.Contains("TTree"))
+        {
+            TTree * tree;
+            f.GetObject(theKey->GetName(), tree);
+            int n = tree->Draw("radius", TString::Format("isLeaf && radius >= %.12g", r), "goff");
+            hfluct->Fill(n);
+            std::cout << "\r" << nb_events;
+            delete tree;
+            ++nb_events;         
+        }
+    }
 
-    for (int j = 0; j < nb_events; ++j)
+    //TH1F * htemp = (TH1F*)gDirectory->Get("hf");
+    //htemp->Print();
+    //htemp->SetDirectory(0);
+
+    /*for (int j = 0; j < nb_events; ++j)
     {
         TTree * tree;
         f.GetObject(TString::Format("tree%d", j), tree);
@@ -107,27 +130,45 @@ void fluctuations(TApplication * myapp, int nb_events, Double_t max_y, Double_t 
         hfluct->Fill(n);
         std::cout << "\r" << j;
         delete tree;
-    }
+    }*/
     if (logX) hfluct->Sumw2();
     if (logX) hfluct->Scale(1, "width");
-    hfluct->Draw("E");
+    hfluct->SetTitle(TString::Format("#splitline{Fluctuations over %d events}{with y_max = %.12g, r = %.12g and rho = %.12g}", nb_events, max_y, r, rho));
     
-    TF1 pn("pn", "[0] / x * [1] * [1] / ([2] * [2]) * exp(- log(x)*log(x)/(4*[3]))", 1000, 2000);
-    pn.FixParameter(1, x01);
-    pn.FixParameter(2, r);
-    pn.FixParameter(3, max_y);
-    pn.SetLineColor(kViolet);
-    //hfluct->Fit("pn", "IR");
+    if (with_cutoff)
+    {
+        // Parameter 0 : proportionality | 3 : c
+        TF1 pn_cutoff("pn_cutoff", "[0] * [1]^2 / [2]^2 * exp(-[1]^2/(2. * [2]^2)) * exp(([3] * [4])/x)", 100, 600);
+        pn_cutoff.FixParameter(1, x01);
+        pn_cutoff.FixParameter(2, 2.0); // R
+        pn_cutoff.SetParLimits(3, 0.01, 20);
+        pn_cutoff.FixParameter(4, hfluct->GetMean()); // mean n
+        hfluct->Fit("pn_cutoff", "*IR+");
+    }
+    else // no cutoff IR
+    {
+        TF1 pn("pn", "[0] / x * [1] * [1] / ([2] * [2]) * exp(- log(x)*log(x)/(4*[3]))", 1000, 2000);
+        pn.FixParameter(1, x01);
+        pn.FixParameter(2, r);
+        pn.FixParameter(3, max_y);
+        pn.SetLineColor(kViolet);
+        hfluct->Fit("pn", "IR");
+    }
+    histogram.Write();
+    histogram.Close();
+}
 
-    // Parameter 0 : proportionality | 3 : c
-    TF1 pn_cutoff("pn_cutoff", "[0] * [1]^2 / [2]^2 * exp(-[1]^2/(2. * [2]^2)) * exp(-x/([3] * [4]))", 1000, 3000);
-    pn_cutoff.FixParameter(1, x01);
-    pn_cutoff.FixParameter(2, 2.0); // R
-    pn_cutoff.SetParLimits(3, 0.01, 20);
-    pn_cutoff.FixParameter(4, hfluct->GetMean()); // mean n
-    //hfluct->Fit("pn_cutoff", "*IR+");
+void draw_fluctuations(TApplication * myapp, TH1F * hfluct, bool logX)
+{
+    TCanvas c;
 
-    c.SetTitle(TString::Format("Chi2 : %.12g", pn_cutoff.GetChisquare()));
+    c.cd(1);
+    if (logX) gPad->SetLogx();
+    gPad->SetLogy();
+
+    hfluct->Draw("E");
+
+    //c.SetTitle(TString::Format("Chi2 : %.12g", pn_cutoff.GetChisquare()));
     c.Update();
 
     myapp->Run();
