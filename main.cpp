@@ -11,6 +11,8 @@
 #include <TStyle.h>
 #include <TLegend.h>
 #include <TLine.h>
+#include <TFile.h>
+
 #include <sstream>
 #include <iostream>
 #include <RooStats/Heaviside.h>
@@ -28,13 +30,14 @@ std::string encode_parameters(int nb_events, Double_t rho, Double_t max_y, std::
     return "mpi_tree_" + std::to_string(nb_events) + "events_cutoff" + std::to_string(rho) + "_ymax" + std::to_string(max_y) + "_" + cutoff_type + ".root";
 }
 
-void decode_parameters(std::string filename, Double_t * rho, Double_t * max_y, std::string * cutoff_type)
+void decode_parameters(std::string filename, Double_t * rho, Double_t * max_y, std::string * cutoff_type, int * nb_events)
 {
     std::string double_regex = "[-+]?[0-9]*\.?[0-9]+";
     std::regex r("mpi_tree_([[:digit:]]+)events_cutoff("+double_regex+")_ymax("+double_regex+")_(\\w+).root");
     std::smatch m;
     if (std::regex_match(filename, m, r))
     {
+        *nb_events = std::stoi(m[1]);
         *rho = std::stod(m[2]);
         *max_y = std::stod(m[3]);
         *cutoff_type = m[4];
@@ -64,7 +67,7 @@ int main( int argc, char* argv[] )
 
     if (val == "-h" || val == "--help")
     {
-        std::cout << "Usage: ./main generate | fluctuations | fit-bare-r [rho] [max_y] | ancestors [nb_events] [rho] [max_y] | draw-cutoffs" << std::endl;
+        std::cout << "Usage: ./main generate | fluctuations | check [file] | fit-bare-r [rho] [max_y] | ancestors [nb_events] [rho] [max_y] | draw-cutoffs" << std::endl;
         std::cout << "Options: \n \t --help : Print usage" << std::endl;
     }
     else if (val == "generate")
@@ -149,7 +152,7 @@ int main( int argc, char* argv[] )
         if (rank > 0)
         {
             // Set up Filenames
-            std::string s = encode_parameters(nb_events, max_y, rho, cutoff_type);
+            std::string s = encode_parameters(nb_events, rho, max_y, cutoff_type);
             const char * tree_file = s.c_str();
             std::string s2 = "lookup_table_" + cutoff_type + "_cutoff" + std::to_string(rho) + "_rank" + std::to_string(rank);
             const char * lut_file = s2.c_str();
@@ -220,19 +223,31 @@ int main( int argc, char* argv[] )
             std::string filename_hist = filename + "hist";
             Double_t max_y, rho;
             std::string cutoff_type;
-            decode_parameters(filename, &rho, &max_y, &cutoff_type);
+            int nb_events;
+            decode_parameters(filename, &rho, &max_y, &cutoff_type, &nb_events);
             Double_t r = 0.05;
             fluctuations(max_y, 1.0, rho, r, filename.c_str(), filename_hist.c_str(), true);
         }
 
         MPI_Finalize();
     }
-    else if (val == "decode")
+    else if (val == "check")
     {
         Double_t max_y, x01, rho;
         std::string cutoff_type;
-        decode_parameters("mpi_tree_1events_cutoff0.010000_ymax2.000000_rigid.root", &rho, &max_y, &cutoff_type);
-        std::cout << cutoff_type << " " << max_y << " " << rho << std::endl;
+        int nb_events;
+        std::string filename = argv[2];
+        TFile f(filename.c_str(), "READ");
+        int nb_events_real = f.GetListOfKeys()->GetSize();
+
+        decode_parameters(filename, &rho, &max_y, &cutoff_type, &nb_events);
+        std::cout << "File " << filename << std::endl;
+        std::cout << "Parameters:\n" << "\tRho = " << rho << "\n\tY_max = " << max_y << "\n\tCutoff type = " << cutoff_type;
+        std::cout << "\nNumber of events: " << nb_events_real;
+        if (nb_events != nb_events_real) std::cout << " -- WARNING should be " << nb_events;
+        std::cout << std::endl;
+
+        f.Close();
     }
     else if (val == "fit-bare-r")
     {
