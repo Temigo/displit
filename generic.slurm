@@ -23,3 +23,4 @@ module load root
 module load openmpi
 
 mpiexec -np $SLURM_NTASKS ./main generate
+# mpiexec --mca orte_base_help_aggregate 0 -np $SLURM_NTASKS ./main generate

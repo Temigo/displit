@@ -67,7 +67,7 @@ int main( int argc, char* argv[] )
 
     if (val == "-h" || val == "--help")
     {
-        std::cout << "Usage: ./main generate | fluctuations | check [file] | fit-bare-r [rho] [max_y] | ancestors [nb_events] [rho] [max_y] | draw-cutoffs" << std::endl;
+        std::cout << "Usage: ./main generate [parameters file] | fluctuations [file] | check [file] | fit-bare-r [rho] [max_y] | ancestors [nb_events] [rho] [max_y] | draw-cutoffs" << std::endl;
         std::cout << "Options: \n \t --help : Print usage" << std::endl;
     }
     else if (val == "generate")
@@ -87,7 +87,7 @@ int main( int argc, char* argv[] )
         if (rank == 0)
         {
             std::cerr << size << " processes" << std::endl;
-            std::ifstream params("parameters");
+            std::ifstream params(argv[2]);
             if (params.is_open())
             {
                 int i = 0;
@@ -188,7 +188,7 @@ int main( int argc, char* argv[] )
         if (rank == 0)
         {
             std::cerr << size << " processes" << std::endl;
-            std::ifstream files("files");
+            std::ifstream files(argv[2]);
             if (files.is_open())
             {
                 int i = 0;
@@ -247,7 +247,7 @@ int main( int argc, char* argv[] )
         if (nb_events != nb_events_real) std::cout << " -- WARNING should be " << nb_events;
         std::cout << std::endl;
 
-        f.Close();
+        //f.Close(); // segmentation violation ??
     }
     else if (val == "fit-bare-r")
     {
@@ -278,7 +278,6 @@ int main( int argc, char* argv[] )
     compute_biggest_child(tree, myapp);*/
 
     //myapp->Run();
-    
-    delete myapp;
+    //delete myapp;
     return EXIT_SUCCESS;
 }
