@@ -15,6 +15,9 @@ void fluctuations(Double_t max_y, Double_t x01, Double_t rho, Double_t r,
                   const char * filename, 
                   const char * filename_hist, 
                   bool with_cutoff);
+void draw_fluctuations(TApplication * myapp, const char * filename, 
+                        bool logX, bool with_cutoff, 
+                        Double_t x01, Double_t r, Double_t max_y);
 void stat_events(TApplication * myapp, Double_t max_y, Double_t x01);
 void draw_tree(TApplication * myapp, TTree * tree);
 void generate_events(int nb_events, Double_t rho, Double_t max_y, bool with_cutoff = false, TF1 * cutoff = NULL, bool raw_cutoff = false, const char * tree_file = "tree.root", const char * lut_file = "lookup_table");

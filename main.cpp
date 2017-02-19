@@ -5,7 +5,6 @@
 
 #include <TApplication.h>
 #include<TMath.h>
-#include <TROOT.h>
 #include <TRandom3.h>
 #include <TCanvas.h>
 #include <TStyle.h>
@@ -65,12 +64,47 @@ int main( int argc, char* argv[] )
         val = argv[1];
     }
 
+    // Gaussian cutoff
+    TF2 * cutoff_gaussian = new TF2("cutoff_gaussian", "exp(-[0] / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y)))", 0, TMath::Infinity(), 0, TMath::Pi());
+    // Lorentzian cutoff
+    TF2 * cutoff_lorentzian1 = new TF2("cutoff_lorentzian1", "1 / (1 + ([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y))))", 0, TMath::Infinity(), 0, TMath::Pi());
+    TF2 * cutoff_lorentzian2 = new TF2("cutoff_lorentzian2", "1 / (1 + ([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y)))^2 )", 0, TMath::Infinity(), 0, TMath::Pi());
+    TF2 * cutoff_lorentzian3 = new TF2("cutoff_lorentzian3", "1 / (1 + ([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y)))^3 )", 0, TMath::Infinity(), 0, TMath::Pi());
+    // Maxwellian cutoff
+    //TF2 * cutoff = new TF2("cutoff", "1 / (1 + exp([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y))))", 0, TMath::Infinity(), 0, TMath::Pi());
+    // Heaviside
+    //TF2 * cutoff_heaviside = new TF2("cutoff_heaviside", heaviside, 0, TMath::Infinity(), 0, TMath::Pi(), 2);
+    TF1 * cutoff_heaviside = new TF1("cutoff_heaviside", "(x > 2) ? 0.0 : 1.0", 0, TMath::Infinity());
+    //std::cerr << cutoff->Eval(3, 2.5);
+    //std::cerr << cutoff->Integral(0, 77, 0, TMath::Pi());
+    //cutoff->SetParameter(0, 1.0);
+    //cutoff->SetParameter(1, 2.0);
+    //cutoff->Draw("surf2");
+
+    std::map<std::string, TF1 *> cutoffs = {
+        {"gaussian", cutoff_gaussian},
+        {"lorentzian1", cutoff_lorentzian1},
+        {"lorentzian2", cutoff_lorentzian2},
+        {"lorentzian3", cutoff_lorentzian3},
+        {"rigid", cutoff_heaviside}
+    };
+
     if (val == "-h" || val == "--help")
     {
-        std::cout << "Usage: ./main generate [parameters file] | fluctuations [file] | check [file] | fit-bare-r [rho] [max_y] | ancestors [nb_events] [rho] [max_y] | draw-cutoffs" << std::endl;
-        std::cout << "Options: \n \t --help : Print usage" << std::endl;
+        std::cout << "Usage: ./main [options] (or mpiexec -np $NB_TASKS ./main [options] if using MPI)" << std::endl;
+        std::cout << "Options: \n\t--help : Print usage";
+        std::cout << "\n\tgenerate [nb_events] [rho] [max_y] [cutoff_type]";
+        std::cout << "\n\tgenerate-mpi [parameters file]\n\t\t Generate events given the [parameters file].";
+        std::cout << "\n\tfluctuations [filename]";
+        std::cout << "\n\tfluctuations-mpi [file]\n\t\t Compute fluctuations for each file in [file].";
+        std::cout << "\n\tdraw-fluctuations [histogram file] [max_y]";
+        std::cout << "\n\tcheck [file]";
+        std::cout << "\n\tfit-bare-r [rho] [max_y]";
+        std::cout << "\n\tancestors [nb_events] [rho] [max_y]";
+        std::cout << "\n\tdraw-cutoffs";
+        std::cout << std::endl;
     }
-    else if (val == "generate")
+    else if (val == "generate-mpi")
     {
         int rank, size; // rank of the process and number of processes
         MPI_Init(NULL, NULL);
@@ -123,30 +157,6 @@ int main( int argc, char* argv[] )
         }
         MPI_Barrier(MPI_COMM_WORLD);
 
-        // Gaussian cutoff
-        TF2 * cutoff_gaussian = new TF2("cutoff_gaussian", "exp(-[0] / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y)))", 0, TMath::Infinity(), 0, TMath::Pi());
-        // Lorentzian cutoff
-        TF2 * cutoff_lorentzian1 = new TF2("cutoff_lorentzian1", "1 / (1 + ([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y))))", 0, TMath::Infinity(), 0, TMath::Pi());
-        TF2 * cutoff_lorentzian2 = new TF2("cutoff_lorentzian2", "1 / (1 + ([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y)))^2 )", 0, TMath::Infinity(), 0, TMath::Pi());
-        TF2 * cutoff_lorentzian3 = new TF2("cutoff_lorentzian3", "1 / (1 + ([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y)))^3 )", 0, TMath::Infinity(), 0, TMath::Pi());
-        // Maxwellian cutoff
-        //TF2 * cutoff = new TF2("cutoff", "1 / (1 + exp([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y))))", 0, TMath::Infinity(), 0, TMath::Pi());
-        // Heaviside
-        //TF2 * cutoff_heaviside = new TF2("cutoff_heaviside", heaviside, 0, TMath::Infinity(), 0, TMath::Pi(), 2);
-        TF1 * cutoff_heaviside = new TF1("cutoff_heaviside", "(x > 2) ? 0.0 : 1.0", 0, TMath::Infinity());
-        //std::cerr << cutoff->Eval(3, 2.5);
-        //std::cerr << cutoff->Integral(0, 77, 0, TMath::Pi());
-        //cutoff->SetParameter(0, 1.0);
-        //cutoff->SetParameter(1, 2.0);
-        //cutoff->Draw("surf2");
-
-        std::map<std::string, TF1 *> cutoffs = {
-            {"gaussian", cutoff_gaussian},
-            {"lorentzian1", cutoff_lorentzian1},
-            {"lorentzian2", cutoff_lorentzian2},
-            {"lorentzian3", cutoff_lorentzian3},
-            {"rigid", cutoff_heaviside}
-        };
         cutoffs[cutoff_type]->SetName("cutoff");
 
         if (rank > 0)
@@ -166,15 +176,31 @@ int main( int argc, char* argv[] )
                 return EXIT_FAILURE;
             }
         }
-        delete cutoff_gaussian;
-        delete cutoff_lorentzian1;
-        delete cutoff_lorentzian2;
-        delete cutoff_lorentzian3;
-        delete cutoff_heaviside;
 
         MPI_Finalize();
     }
-    else if (val == "fluctuations")
+    else if (val == "generate")
+    {
+        int nb_events = std::stoi(argv[2]); // Number of events to read/generate
+        Double_t rho = std::stod(argv[3]);
+        Double_t max_y = std::stod(argv[4]);
+        std::string cutoff_type = argv[5];
+        // Set up Filenames
+        std::string s = encode_parameters(nb_events, rho, max_y, cutoff_type);
+        const char * tree_file = s.c_str();
+        std::string s2 = "lookup_table_" + cutoff_type + "_cutoff" + std::to_string(rho);
+        const char * lut_file = s2.c_str();
+
+        try
+        {
+            generate_events(nb_events, rho, max_y, true, cutoffs[cutoff_type], false, tree_file, lut_file);
+        }
+        catch (...)
+        {
+            return EXIT_FAILURE;
+        }
+    }
+    else if (val == "fluctuations-mpi")
     {
         int rank, size; // rank of the process and number of processes
         MPI_Init(NULL, NULL);
@@ -225,11 +251,22 @@ int main( int argc, char* argv[] )
             std::string cutoff_type;
             int nb_events;
             decode_parameters(filename, &rho, &max_y, &cutoff_type, &nb_events);
-            Double_t r = 0.05;
+            Double_t r = 0.05; // TODO
             fluctuations(max_y, 1.0, rho, r, filename.c_str(), filename_hist.c_str(), true);
         }
 
         MPI_Finalize();
+    }
+    else if (val == "fluctuations")
+    {
+        std::string filename = argv[2];
+        std::string filename_hist = filename + "hist";
+        Double_t max_y, rho;
+        std::string cutoff_type;
+        int nb_events;
+        decode_parameters(filename, &rho, &max_y, &cutoff_type, &nb_events);
+        Double_t r = 0.05; // TODO
+        fluctuations(max_y, 1.0, rho, r, filename.c_str(), filename_hist.c_str(), true);        
     }
     else if (val == "check")
     {
@@ -266,6 +303,18 @@ int main( int argc, char* argv[] )
     {
         draw_cutoffs(myapp);
     }
+    else if (val == "draw-fluctuations")
+    {
+        std::string filename = argv[2];
+        Double_t x01 = 1.0;
+        Double_t r = 0.05;
+        Double_t max_y = std::stod(argv[3]);
+        draw_fluctuations(myapp, filename.c_str(), false, true, x01, r, max_y);
+    }
+    else
+    {
+        std::cout << "Unknown command." << std::endl;
+    }
     // General fit
     //general_plot(myapp);
     //stat_events(myapp, max_y, 1.0);
@@ -279,5 +328,10 @@ int main( int argc, char* argv[] )
 
     //myapp->Run();
     //delete myapp;
+    delete cutoff_gaussian;
+    delete cutoff_lorentzian1;
+    delete cutoff_lorentzian2;
+    delete cutoff_lorentzian3;
+    delete cutoff_heaviside;    
     return EXIT_SUCCESS;
 }

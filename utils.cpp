@@ -135,15 +135,34 @@ void fluctuations(Double_t max_y, Double_t x01, Double_t rho, Double_t r,
     if (logX) hfluct->Scale(1, "width");
     hfluct->SetTitle(TString::Format("#splitline{Fluctuations over %d events}{with y_max = %.12g, r = %.12g and rho = %.12g}", nb_events, max_y, r, rho));
     
+    histogram.Write();
+    histogram.Close();
+}
+
+void draw_fluctuations(TApplication * myapp, const char * filename, 
+                        bool logX, bool with_cutoff, 
+                        Double_t x01, Double_t r, Double_t max_y)
+{
+    TCanvas c;
+
+    c.cd(1);
+    if (logX) gPad->SetLogx();
+    gPad->SetLogy();
+
+    TFile f(filename, "READ");
+    TH1F * hfluct = (TH1F*) gDirectory->Get("hfluct");
+    hfluct->Draw("E1");
+
     if (with_cutoff)
     {
         // Parameter 0 : proportionality | 3 : c
-        TF1 pn_cutoff("pn_cutoff", "[0] * [1]^2 / [2]^2 * exp(-[1]^2/(2. * [2]^2)) * exp(([3] * [4])/x)", 100, 600);
+        TF1 pn_cutoff("pn_cutoff", "[0] * [1]^2 / [2]^2 * exp(-[1]^2/(2. * [2]^2)) * exp(-x/([3] * [4]))", 1000, 6000);
         pn_cutoff.FixParameter(1, x01);
         pn_cutoff.FixParameter(2, 2.0); // R
         pn_cutoff.SetParLimits(3, 0.01, 20);
         pn_cutoff.FixParameter(4, hfluct->GetMean()); // mean n
         hfluct->Fit("pn_cutoff", "*IR+");
+        c.SetTitle(TString::Format("Chi2 : %.12g", pn_cutoff.GetChisquare()));
     }
     else // no cutoff IR
     {
@@ -153,24 +172,10 @@ void fluctuations(Double_t max_y, Double_t x01, Double_t rho, Double_t r,
         pn.FixParameter(3, max_y);
         pn.SetLineColor(kViolet);
         hfluct->Fit("pn", "IR");
+        c.SetTitle(TString::Format("Chi2 : %.12g", pn.GetChisquare()));
     }
-    histogram.Write();
-    histogram.Close();
-}
 
-void draw_fluctuations(TApplication * myapp, TH1F * hfluct, bool logX)
-{
-    TCanvas c;
-
-    c.cd(1);
-    if (logX) gPad->SetLogx();
-    gPad->SetLogy();
-
-    hfluct->Draw("E");
-
-    //c.SetTitle(TString::Format("Chi2 : %.12g", pn_cutoff.GetChisquare()));
     c.Update();
-
     myapp->Run();
 }
 
