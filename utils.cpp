@@ -1,6 +1,7 @@
 #include "utils.h"
 #include "event.h"
 #include "EventTree.h"
+#include "globals.h"
 
 #include <TFile.h>
 #include <TMath.h>
@@ -23,12 +24,12 @@
 
 void sig_to_exception(int s)
 {
-    std::cerr << "sig2exception" << std::endl;
+    std::cout << "sig2exception" << std::endl;
     throw s;
 }
 
 // Generate *nb_events* events with same parameters rho and max_y
-void generate_events(int nb_events, Double_t rho, Double_t max_y, bool with_cutoff, TF1 * cutoff, bool raw_cutoff, const char * tree_file)
+void generate_events(int nb_events, Double_t rho, Double_t max_y, bool with_cutoff, TF1 * cutoff, bool raw_cutoff, const char * tree_file, const char * lut_file)
 {
     // Handle interrupt Ctrl-C
     struct sigaction sigIntHandler;
@@ -37,93 +38,144 @@ void generate_events(int nb_events, Double_t rho, Double_t max_y, bool with_cuto
     sigIntHandler.sa_flags = 0;
     sigaction(SIGINT, &sigIntHandler, NULL);
 
-    TFile output(tree_file, "recreate");
-    std::cerr << "Rho = " << rho << " ; Maximum rapidity = " << max_y << std::endl;
-    std::cerr << "With cutoff = " << with_cutoff << " ; Raw computation = " << raw_cutoff << std::endl;
+    TFile * output = new TFile(tree_file, "recreate");
+    std::cout << "Rho = " << rho << " ; Maximum rapidity = " << max_y << std::endl;
+    std::cout << "With cutoff = " << with_cutoff << " ; Raw computation = " << raw_cutoff << std::endl;
     int current_index;
     try
     {
-        Event e(rho, max_y, "lookup_table", cutoff, with_cutoff, raw_cutoff);
+        Event e(rho, max_y, lut_file, cutoff, with_cutoff, raw_cutoff);
         e.WriteLookupTable(); // in case the cutoff changed
         for (int j = 0; j < nb_events; ++j)
         {
             current_index = j;
-            std::cerr << BLUE << "Tree " << j << RESET << std::endl;
+            if (DEBUG) std::cout << BLUE << "Tree " << j << RESET << std::endl;
             // The boolean below is for drawing the final splitted dipole
             TTree * tree = new TTree(TString::Format("tree%d", j), "Dipole splitting");
             e.make_tree(tree, false);
-            //if (j%50 == 0) output->Write();
+            if (j%1000 == 0)
+            {
+                output = tree->GetCurrentFile();
+                output->Write(0,TObject::kOverwrite);
+            }
         }
         // output = tree->GetCurrentFile() ??
-        output.Write();
-        output.Close();
-        std::cerr << "Generated and saved " << nb_events << " events in tree.root." << std::endl;
+        output->Write(0,TObject::kOverwrite);
+        output->Close();
+        std::cout << "Generated and saved " << nb_events << " events in " << tree_file << std::endl;
     }
     catch (...)
     {
-        std::cerr << "Catching exception" << std::endl;
-        output.Write();
-        output.Delete(TString::Format("tree%d;*", current_index));
-        output.Write(0,TObject::kOverwrite); // remove previous cycles for trees
-        output.Close();
-        std::cerr << "Interrupted at j=" << current_index << std::endl;
+        std::cout << "Catching exception" << std::endl;
+        output->Write();
+        output->Delete(TString::Format("tree%d;*", current_index));
+        output->Write(0,TObject::kOverwrite); // remove previous cycles for trees
+        output->Close();
+        std::cout << "Interrupted at j=" << current_index << std::endl;
         throw std::runtime_error("Interrupted");
     }
+    delete output;
 }
 
 /* Compute fluctuations p_n
 * = probability to have n dipoles of size >= r from a dipole of size x01 until
 * rapidity y_max
 */
-void fluctuations(TApplication * myapp, int nb_events, Double_t max_y, Double_t x01, Double_t rho)
+void fluctuations(Double_t max_y, Double_t x01, Double_t rho, Double_t r, 
+                  const char * filename, 
+                  const char * filename_hist, 
+                  bool with_cutoff)
 {
-    Double_t r = 0.05;
     bool logX = false;
+    
+    TFile histogram(filename_hist, "RECREATE");
 
-    TCanvas c;
-
-    c.cd(1);
-    if (logX) gPad->SetLogx();
-    gPad->SetLogy();
-    TH1F * hfluct = new TH1F("hfluct", TString::Format("#splitline{Fluctuations over %d events}{with y_max = %.12g, r = %.12g and rho = %.12g}", nb_events, max_y, r, rho), 100, 0, 0);
+    TH1F * hfluct = new TH1F("hfluct", "title", 100, 0, 0);
     hfluct->GetXaxis()->SetTitle("Number of events n(r, x01, y_max)");
     hfluct->GetYaxis()->SetTitle("p_n(r, x01, y)");
     if (logX) BinLogX2(hfluct, 100);
 
-    TFile f("tree.root");
+    // Get List of trees independently (in case it was aborted before nb_events)
+    TFile f(filename, "READ");
+    //f.ls();
+    TList * list = f.GetListOfKeys();
+    TIter iter(list->MakeIterator());
+    int nb_events = 0;
+    while(TObject * obj = iter())
+    {
+        TKey * theKey = (TKey*) obj;
+        TString className = theKey->GetClassName();
+        if (className.Contains("TTree"))
+        {
+            TTree * tree;
+            f.GetObject(theKey->GetName(), tree);
+            int n = tree->Draw("radius", TString::Format("isLeaf && radius >= %.12g", r), "goff");
+            hfluct->Fill(n);
+            std::cout << "\r" << nb_events;
+            delete tree;
+            ++nb_events;         
+        }
+    }
 
-    for (int j = 0; j < nb_events; ++j)
+    //TH1F * htemp = (TH1F*)gDirectory->Get("hf");
+    //htemp->Print();
+    //htemp->SetDirectory(0);
+
+    /*for (int j = 0; j < nb_events; ++j)
     {
         TTree * tree;
         f.GetObject(TString::Format("tree%d", j), tree);
         //tree->Print();
         int n = tree->Draw("radius", TString::Format("isLeaf && radius >= %.12g", r), "goff");
         hfluct->Fill(n);
-        std::cerr << "\r" << j;
+        std::cout << "\r" << j;
         delete tree;
-    }
+    }*/
     if (logX) hfluct->Sumw2();
     if (logX) hfluct->Scale(1, "width");
-    hfluct->Draw("E");
+    hfluct->SetTitle(TString::Format("#splitline{Fluctuations over %d events}{with y_max = %.12g, r = %.12g and rho = %.12g}", nb_events, max_y, r, rho));
     
-    TF1 pn("pn", "[0] / x * [1] * [1] / ([2] * [2]) * exp(- log(x)*log(x)/(4*[3]))", 1000, 2000);
-    pn.FixParameter(1, x01);
-    pn.FixParameter(2, r);
-    pn.FixParameter(3, max_y);
-    pn.SetLineColor(kViolet);
-    //hfluct->Fit("pn", "IR");
+    histogram.Write();
+    histogram.Close();
+}
 
-    // Parameter 0 : proportionality | 3 : c
-    TF1 pn_cutoff("pn_cutoff", "[0] * [1]^2 / [2]^2 * exp(-[1]^2/(2. * [2]^2)) * exp(-x/([3] * [4]))", 1000, 3000);
-    pn_cutoff.FixParameter(1, x01);
-    pn_cutoff.FixParameter(2, 2.0); // R
-    pn_cutoff.SetParLimits(3, 0.01, 20);
-    pn_cutoff.FixParameter(4, hfluct->GetMean()); // mean n
-    //hfluct->Fit("pn_cutoff", "*IR+");
+void draw_fluctuations(TApplication * myapp, const char * filename, 
+                        bool logX, bool with_cutoff, 
+                        Double_t x01, Double_t r, Double_t max_y)
+{
+    TCanvas c;
 
-    c.SetTitle(TString::Format("Chi2 : %.12g", pn_cutoff.GetChisquare()));
+    c.cd(1);
+    if (logX) gPad->SetLogx();
+    gPad->SetLogy();
+
+    TFile f(filename, "READ");
+    TH1F * hfluct = (TH1F*) gDirectory->Get("hfluct");
+    hfluct->Draw("E1");
+
+    if (with_cutoff)
+    {
+        // Parameter 0 : proportionality | 3 : c
+        TF1 pn_cutoff("pn_cutoff", "[0] * [1]^2 / [2]^2 * exp(-[1]^2/(2. * [2]^2)) * exp(-x/([3] * [4]))", 1000, 6000);
+        pn_cutoff.FixParameter(1, x01);
+        pn_cutoff.FixParameter(2, 2.0); // R
+        pn_cutoff.SetParLimits(3, 0.01, 20);
+        pn_cutoff.FixParameter(4, hfluct->GetMean()); // mean n
+        hfluct->Fit("pn_cutoff", "*IR+");
+        c.SetTitle(TString::Format("Chi2 : %.12g", pn_cutoff.GetChisquare()));
+    }
+    else // no cutoff IR
+    {
+        TF1 pn("pn", "[0] / x * [1] * [1] / ([2] * [2]) * exp(- log(x)*log(x)/(4*[3]))", 1000, 2000);
+        pn.FixParameter(1, x01);
+        pn.FixParameter(2, r);
+        pn.FixParameter(3, max_y);
+        pn.SetLineColor(kViolet);
+        hfluct->Fit("pn", "IR");
+        c.SetTitle(TString::Format("Chi2 : %.12g", pn.GetChisquare()));
+    }
+
     c.Update();
-
     myapp->Run();
 }
 
@@ -156,7 +208,7 @@ void stat_events(TApplication * myapp, Double_t max_y, Double_t x01)
         TString className = theKey->GetClassName();
         if (className.Contains("TTree"))
         {
-            std::cerr << theKey->GetName() << " " << theKey->GetClassName() << std::endl;
+            std::cout << theKey->GetName() << " " << theKey->GetClassName() << std::endl;
             TTree * tree;
             f.GetObject(theKey->GetName(), tree);
             //tree->Print();
@@ -175,7 +227,7 @@ void stat_events(TApplication * myapp, Double_t max_y, Double_t x01)
 
     // First limit : rho >> y_max
     Double_t max_r = x01 / 10. * TMath::Exp(max_y / 2.);
-    std::cerr << max_r << std::endl;
+    std::cout << max_r << std::endl;
     TF1 nf("nf", "[2] * TMath::BesselI0(2. * sqrt([0] * log([1]*[1] / (x*x))))", 0.01, max_r);
     nf.FixParameter(0, max_y);
     nf.FixParameter(1, x01);
@@ -183,7 +235,7 @@ void stat_events(TApplication * myapp, Double_t max_y, Double_t x01)
     htemp_cum->Fit("nf", "R");
 
     Double_t min_r = x01 / 2. * TMath::Exp(max_y / 2.);
-    std::cerr << min_r << std::endl;
+    std::cout << min_r << std::endl;
     TF1 nf2("nf2", "[0] * [1] * [1] / (x*x) * exp(2. * sqrt([2] * log([1] * [1] / (x * x))))", 1.0, 1.5);
     nf2.FixParameter(1, x01);
     nf2.FixParameter(2, max_y);
@@ -242,13 +294,13 @@ Long64_t GetCommonAncestors(TTree * tree, Long64_t i1, Long64_t i2)
             i3 = t.index_parent;
         }
     }
-    //std::cerr << "same depth" << std::endl;
+    //std::cout << "same depth" << std::endl;
 
     Long64_t p1 = i4;
     Long64_t p2 = i3;
     while(p1 != p2)
     {
-        //std::cerr << p1 << " " << p2 << std::endl;
+        //std::cout << p1 << " " << p2 << std::endl;
         t.GetEntry(p1);
         p1 = t.index_parent;
         t.GetEntry(p2);
@@ -266,7 +318,7 @@ bool RandomSelectkLeaves(TTree * tree, Long64_t indexes[], int k)
     //EventTree * t = new EventTree(tree);
     Long64_t nleaves = tree->GetEntries("isLeaf");
     //Long64_t nentries = tree->GetEntries();
-    //std::cerr << nleaves << " leaves" << std::endl;
+    //std::cout << nleaves << " leaves" << std::endl;
     if (nleaves < k) return false;
 
     //tree->Scan("depth:index_children:index_parent");
@@ -317,16 +369,16 @@ void CommonAncestorPlot(TApplication * myapp, int nb_events, Double_t max_y, Dou
         TTree * tree;
         f.GetObject(TString::Format("tree%d", j), tree);
         //tree->Print();
-        std::cerr << j << std::endl;
+        std::cout << j << std::endl;
         if (RandomSelectkLeaves(tree, indexes, k))
         {
-            //std::cerr << indexes[0] << " " << indexes[1] << " " << indexes[2] << std::endl;
+            //std::cout << indexes[0] << " " << indexes[1] << " " << indexes[2] << std::endl;
             Long64_t a = indexes[0];
             for (int l = 0; l < k-1; ++l)
             {
                 a = GetCommonAncestors(tree, a, indexes[l+1]);
                 if (a < 0) a = 0;
-                //std::cerr << a << std::endl;
+                //std::cout << a << std::endl;
             }
 
             // Get rapidity of common ancestor
@@ -359,7 +411,7 @@ void compute_biggest_child(TTree * tree, TApplication * myapp)
     
     Long64_t nentries = tree->GetEntries(); // read the number of entries in tree
 
-    std::cerr << nentries << std::endl;
+    std::cout << nentries << std::endl;
     for (Long64_t i = nentries-1; i >= 0; --i)
     {
         t.GetEntry(i);
@@ -378,10 +430,10 @@ void compute_biggest_child(TTree * tree, TApplication * myapp)
             max_children_radius = TMath::Max(max_children_radius, t.radius);
             if (max_children_radius < 0.)
             {
-                std::cerr << i << " Negative" << std::endl;
+                std::cout << i << " Negative" << std::endl;
             }
         }
-        //std::cerr << i << " " << max_children_radius << std::endl;
+        //std::cout << i << " " << max_children_radius << std::endl;
         biggestChildSize->Fill();
     }
     for (Long64_t i = 0; i < nentries; ++i)
@@ -403,7 +455,7 @@ void compute_biggest_child(TTree * tree, TApplication * myapp)
     //tree->Draw("radius:treeFriend.max_children_radius", "radius < 0.2 && treeFriend.max_children_radius < 0.2");
     tree->Draw("radius:treeFriend.max_children_radius>>hmax", "radius<0.1 && treeFriend.max_children_radius < 0.1", "colz");
     TH3D * htemp = (TH3D*) gDirectory->Get("hmax");
-    std::cerr << htemp->GetEntries() << std::endl;
+    std::cout << htemp->GetEntries() << std::endl;
     htemp->SetDirectory(0); // Don't forget this one !!
     //htemp->Draw("box");
     //htemp->DrawPanel();
@@ -441,7 +493,7 @@ void BinLogX(TH1 *h)
 
     for (int i = 0; i <= bins; i++) {
         new_bins[i] = TMath::Power(10, from + i * width);
-        //std::cerr << new_bins[i] << std::endl;
+        //std::cout << new_bins[i] << std::endl;
     }
     axis->Set(bins, new_bins);
     delete new_bins;
@@ -464,7 +516,7 @@ Axis_t * BinLogX2(TH1 *h, int bins)
     int nbins = bins;
     if (bins == -1) nbins = axis->GetNbins();
 
-    std::cerr << axis->GetXmin() << " " << TMath::Log(axis->GetXmin()) << std::endl;
+    std::cout << axis->GetXmin() << " " << TMath::Log(axis->GetXmin()) << std::endl;
     Axis_t from = TMath::Max(TMath::Log(axis->GetXmin()), -3.0);
     Axis_t to = TMath::Log(axis->GetXmax());
     Axis_t width = (to - from) / nbins;
@@ -472,7 +524,7 @@ Axis_t * BinLogX2(TH1 *h, int bins)
 
     for (int i = 0; i <= nbins; i++) {
         new_bins[i] = TMath::Power(10, from + i * width);
-        std::cerr << new_bins[i] << std::endl;
+        std::cout << new_bins[i] << std::endl;
     }
     axis->Set(bins, new_bins);
     return new_bins;
@@ -488,7 +540,7 @@ Axis_t * BinLogX3(int nbins)
 
     for (int i = 0; i <= nbins; i++) {
         new_bins[i] = TMath::Power(10, from + i * width);
-        std::cerr << new_bins[i] << std::endl;
+        std::cout << new_bins[i] << std::endl;
     }
     //axis->Set(bins, new_bins);
     return new_bins;
@@ -517,7 +569,7 @@ void general_plot(TApplication * myapp)
 
     TVector * v = (TVector *) tree->GetUserInfo()->At(0);
     Long64_t max_depth = v[0][0];
-    std::cerr << "Max depth : " << max_depth << std::endl;
+    std::cout << "Max depth : " << max_depth << std::endl;
     tree->GetUserInfo()->Print();
 
     c.cd(1);

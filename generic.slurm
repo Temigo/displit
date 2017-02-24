@@ -9,15 +9,18 @@
 # Launch interactive run
 # srun --ntasks=1 ./main 1
 
-#SBATCH --job-name=test
-#SBATCH --time=120  # max 120 minutes
-#SBATCH --account=medium # 96 coeurs timelimit 10 jours
+#SBATCH --job-name=displitGenerate
+##SBATCH --time=120  # max 120 minutes
+#SBATCH --account=small # 96 coeurs timelimit 10 jours
 #SBATCH --mail-user=laura.domine@polytechnique.edu --mail-type=ALL
 ## Pour reserver 1 coeur
-#SBATCH --ntasks=1
-#SBATCH --partition=interactive   // On force l'utilisation de la queue interactive.
- 
- 
-module add root
- 
-./main 1
+#SBATCH --ntasks=15
+#SBATCH --cpus-per-task=1
+##SBATCH --partition=interactive
+
+
+module load root
+module load openmpi
+
+mpiexec -np $SLURM_NTASKS ./main generate
+# mpiexec --mca orte_base_help_aggregate 0 -np $SLURM_NTASKS ./main generate

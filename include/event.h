@@ -58,7 +58,6 @@ class Event
         Double_t r_generate2(Double_t x01 = 1.0);
 
         void draw(Double_t x, Double_t y, Double_t rapidity);
-        void draw_tree(TTree * tree);
         bool generate(Dipole * dipole, Dipole * dipole1, Dipole * dipole2, Double_t max_y);
 
         void generate_normalized(Double_t * x, Double_t * y, Double_t * rapidity);
