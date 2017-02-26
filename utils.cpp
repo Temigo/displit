@@ -155,12 +155,13 @@ void draw_fluctuations(TApplication * myapp, const char * filename,
 
     if (with_cutoff)
     {
+        Double_t nbar = hfluct->GetMean();
         // Parameter 0 : proportionality | 3 : c
-        TF1 pn_cutoff("pn_cutoff", "[0] * [1]^2 / [2]^2 * exp(-[1]^2/(2. * [2]^2)) * exp(-x/([3] * [4]))", 1000, 6000);
+        TF1 pn_cutoff("pn_cutoff", "[0] * [1]^2 / [2]^2 * exp(-[1]^2/(2. * [2]^2)) * exp(-x/([3] * [4]))", nbar, 4*nbar);
         pn_cutoff.FixParameter(1, x01);
         pn_cutoff.FixParameter(2, 2.0); // R
         pn_cutoff.SetParLimits(3, 0.01, 20);
-        pn_cutoff.FixParameter(4, hfluct->GetMean()); // mean n
+        pn_cutoff.FixParameter(4, nbar); // mean n
         hfluct->Fit("pn_cutoff", "*IR+");
         c.SetTitle(TString::Format("Chi2 : %.12g", pn_cutoff.GetChisquare()));
     }
@@ -343,7 +344,7 @@ bool RandomSelectkLeaves(TTree * tree, Long64_t indexes[], int k)
     return true;
 }
 
-void CommonAncestorPlot(TApplication * myapp, int nb_events, Double_t max_y, Double_t x01, Double_t rho)
+void CommonAncestorPlot(TApplication * myapp, int nb_events, Double_t max_y, Double_t x01, Double_t rho, const char * filename)
 {
     int k = 3; // Randomly select k leaves in each event
 
@@ -361,7 +362,7 @@ void CommonAncestorPlot(TApplication * myapp, int nb_events, Double_t max_y, Dou
     BinLogX(hist2);
     gPad->SetLogx();
 
-    TFile f("tree.root");
+    TFile f(filename, "recreate");
     Long64_t indexes[k];
 
     for (int j = 0; j < nb_events; ++j)

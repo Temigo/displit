@@ -24,15 +24,15 @@ Double_t heaviside(Double_t * x, Double_t * p)
     return (x[0] > 2 ? 0.0 : 1.0);
 }
 
-std::string encode_parameters(int nb_events, Double_t rho, Double_t max_y, std::string cutoff_type)
+std::string encode_parameters(int nb_events, Double_t rho, Double_t max_y, std::string cutoff_type, std::string optional)
 {
-    return "mpi_tree_" + std::to_string(nb_events) + "events_cutoff" + std::to_string(rho) + "_ymax" + std::to_string(max_y) + "_" + cutoff_type + ".root";
+    return "mpi_tree_" + std::to_string(nb_events) + "events_cutoff" + std::to_string(rho) + "_ymax" + std::to_string(max_y) + "_" + cutoff_type + "_" + optional + ".root";
 }
 
 void decode_parameters(std::string filename, Double_t * rho, Double_t * max_y, std::string * cutoff_type, int * nb_events)
 {
     std::string double_regex = "[-+]?[0-9]*\.?[0-9]+";
-    std::regex r("mpi_tree_([[:digit:]]+)events_cutoff("+double_regex+")_ymax("+double_regex+")_(\\w+).root");
+    std::regex r("mpi_tree_([[:digit:]]+)events_cutoff("+double_regex+")_ymax("+double_regex+")_(\\w+)_(\\w+).root");
     std::smatch m;
     if (std::regex_match(filename, m, r))
     {
@@ -162,7 +162,7 @@ int main( int argc, char* argv[] )
         if (rank > 0)
         {
             // Set up Filenames
-            std::string s = encode_parameters(nb_events, rho, max_y, cutoff_type);
+            std::string s = encode_parameters(nb_events, rho, max_y, cutoff_type, "rank" + std::to_string(rank));
             const char * tree_file = s.c_str();
             std::string s2 = "lookup_table_" + cutoff_type + "_cutoff" + std::to_string(rho) + "_rank" + std::to_string(rank);
             const char * lut_file = s2.c_str();
@@ -186,7 +186,7 @@ int main( int argc, char* argv[] )
         Double_t max_y = std::stod(argv[4]);
         std::string cutoff_type = argv[5];
         // Set up Filenames
-        std::string s = encode_parameters(nb_events, rho, max_y, cutoff_type);
+        std::string s = encode_parameters(nb_events, rho, max_y, cutoff_type, "no_mpi");
         const char * tree_file = s.c_str();
         std::string s2 = "lookup_table_" + cutoff_type + "_cutoff" + std::to_string(rho);
         const char * lut_file = s2.c_str();
@@ -297,7 +297,7 @@ int main( int argc, char* argv[] )
         int nb_events = std::stoi(argv[2]);
         Double_t rho = std::stoi(argv[3]);
         Double_t max_y = std::stoi(argv[4]);
-        CommonAncestorPlot(myapp, nb_events, max_y, 1.0, rho);
+        CommonAncestorPlot(myapp, nb_events, max_y, 1.0, rho, "ancestors");
     }
     else if (val == "draw-cutoffs")
     {
@@ -310,6 +310,10 @@ int main( int argc, char* argv[] )
         Double_t r = 0.05;
         Double_t max_y = std::stod(argv[3]);
         draw_fluctuations(myapp, filename.c_str(), false, true, x01, r, max_y);
+    }
+    else if (val == "compare")
+    {
+        compare_histo(myapp);
     }
     else
     {
