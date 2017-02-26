@@ -14,13 +14,13 @@
 #SBATCH --account=small # 96 coeurs timelimit 10 jours
 #SBATCH --mail-user=laura.domine@polytechnique.edu --mail-type=ALL
 ## Pour reserver 1 coeur
-#SBATCH --ntasks=15
+#SBATCH --ntasks=16
 #SBATCH --cpus-per-task=1
 ##SBATCH --partition=interactive
 
 
-module load root
-module load openmpi
+module add root/6.06.08
+module add openmpi/gcc/64/1.8.4
 
-mpiexec -np $SLURM_NTASKS ./main generate
+/usr/bin/time -o displitGenerate.log mpiexec ./main generate-mpi parameters
 # mpiexec --mca orte_base_help_aggregate 0 -np $SLURM_NTASKS ./main generate

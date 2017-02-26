@@ -18,7 +18,12 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$ROOTSYS/lib
 ```
 
 ### Compile and run
-Go to displit root directory and type :
+You will also need MPI libraries to compile displit. For example on Ubuntu run :
+```
+$ sudo apt-get install libopenmpi-dev
+```
+
+Go then to displit root directory and type :
 ```
 $ mkdir build
 $ cd build
@@ -26,6 +31,7 @@ $ cmake ..
 $ make
 $ ./main [options]
 ```
+
 To run displit, either use `./main [options]` or if using MPI 
 (only with options `generate-mpi` and `fluctuations-mpi`) 
 use `mpiexec -np $NB_TASKS ./main [options]`.

@@ -6,6 +6,7 @@
 #include <TLegend.h>
 #include <TLine.h>
 #include <TH1D.h>
+#include <TFile.h>
 
 void draw_cutoffs(TApplication * myapp)
 {
@@ -240,6 +241,97 @@ void fit_fluctuations(Double_t rho, Double_t max_y, TApplication * myapp)
 
     //TString::Format("#splitline{Distribution de la taille r du dipole (#rho = %.12g)}{%d bins - chi2 = %.12g et %.12g}", rho, hist.GetSize()-2, chi2_1, chi2_2)
     hist1.SetTitle(TString::Format("%d events with x01 = %.12g, rho = %.12g, y_max = %.12g;Number n of dipoles (leaves) of size over %.12g;Fluctuations p_n", N, 1.0, rho, max_y, r));
+    canvas.Update();
+    myapp->Run();
+}
+
+void compare_histo(TApplication * myapp)
+{
+    TCanvas canvas("canvas", "Sizes", 1080, 780);
+    gPad->SetLogy();
+
+    TFile f1("mpi_tree_100000events_cutoff0.010000_ymax2.000000_gaussian.roothist", "READ");
+    TFile f2("mpi_tree_100000events_cutoff0.010000_ymax2.000000_lorentzian1.roothist", "READ");
+    TFile f3("mpi_tree_100000events_cutoff0.010000_ymax2.000000_rigid.roothist", "READ");
+    TFile f4("mpi_tree_100000events_cutoff0.010000_ymax2.000000_lorentzian2.roothist", "READ");
+    TFile f5("mpi_tree_100000events_cutoff0.010000_ymax2.000000_lorentzian3.roothist", "READ");
+
+    TFile f6("mpi_tree_100000events_cutoff0.010000_ymax3.000000_gaussian.roothist", "READ");
+    TFile f7("mpi_tree_100000events_cutoff0.010000_ymax3.000000_rigid.roothist", "READ");
+    //TH1F * h1 = new TH1F("hist1", "hist1", 100, 0, 100); 
+    TH1F * h1 = (TH1F*)f1.Get("hfluct");
+    TH1F * h2 = (TH1F*)f2.Get("hfluct");
+    TH1F * h3 = (TH1F*)f3.Get("hfluct");
+    TH1F * h4 = (TH1F*)f4.Get("hfluct");
+    TH1F * h5 = (TH1F*)f5.Get("hfluct");
+
+    TH1F * h6 = (TH1F*)f6.Get("hfluct");
+    TH1F * h7 = (TH1F*)f7.Get("hfluct");    
+
+    h1->SetLineColor(30);
+    h2->SetLineColor(40);
+    h3->SetLineColor(41);
+    h4->SetLineColor(42);
+    h5->SetLineColor(46);
+    h1->SetLineWidth(3);
+    h2->SetLineWidth(3);
+    h3->SetLineWidth(3);
+    h4->SetLineWidth(3);
+    h5->SetLineWidth(3);
+
+    h6->SetLineColor(42);
+    h7->SetLineColor(46);
+    h6->SetLineWidth(3);
+    h7->SetLineWidth(3);
+
+    /*h1->Draw("E1");
+    h2->Draw("E1 same");
+    h3->Draw("E1 same");
+    h4->Draw("E1 same");
+    h5->Draw("E1 same");
+
+    TLegend legend(0.2, 0.2, 0.6, 0.4);
+    legend.SetFillColor(0); // white bg
+    legend.SetBorderSize(0); // get rid of the box
+    legend.SetTextSize(0.045);
+    legend.AddEntry(h1,"Gaussian", "L");
+    legend.AddEntry(h2,"Lorentzian (1)", "L");
+    legend.AddEntry(h3,"Rigid", "L");
+    legend.AddEntry(h4,"Lorentzian (2)", "L");
+    legend.AddEntry(h5,"Lorentzian (3)", "L");
+    //legend.AddEntry(&fr1, "Fit (formula without cutoff)", "L");
+    legend.Draw();*/
+
+    h6->Draw("E1");
+    h7->Draw("E1 same");
+
+    TLegend legend(0.2, 0.2, 0.6, 0.4);
+    legend.SetFillColor(0); // white bg
+    legend.SetBorderSize(0); // get rid of the box
+    legend.SetTextSize(0.045);
+    legend.AddEntry(h6,"Gaussian", "L");
+    legend.AddEntry(h7,"Rigid", "L");
+    legend.Draw();
+
+    Double_t nbar = h6->GetMean();
+    // Parameter 0 : proportionality | 3 : c
+    TF1 pn_cutoff("pn_cutoff", "[0] * [1]^2 / [2]^2 * exp(-[1]^2/(2. * [2]^2)) * exp(-x/([3] * [4]))", nbar, 4*nbar);
+    pn_cutoff.FixParameter(1, 1.0);
+    pn_cutoff.FixParameter(2, 2.0); // R
+    pn_cutoff.SetParLimits(3, 0.01, 20);
+    pn_cutoff.FixParameter(4, nbar); // mean n
+    h6->Fit("pn_cutoff", "*IR+");
+
+    Double_t nbar7 = h7->GetMean();
+    // Parameter 0 : proportionality | 3 : c
+    TF1 pn_cutoff7("pn_cutoff7", "[0] * [1]^2 / [2]^2 * exp(-[1]^2/(2. * [2]^2)) * exp(-x/([3] * [4]))", nbar7, 4*nbar7);
+    pn_cutoff7.FixParameter(1, 1.0);
+    pn_cutoff7.FixParameter(2, 2.0); // R
+    pn_cutoff7.SetParLimits(3, 0.01, 20);
+    pn_cutoff7.FixParameter(4, nbar7); // mean n
+    h7->Fit("pn_cutoff7", "*IR+");    
+    //canvas.SetTitle(TString::Format("Chi2 : %.12g", pn_cutoff.GetChisquare()));
+
     canvas.Update();
     myapp->Run();
 }
