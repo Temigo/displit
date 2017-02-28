@@ -29,7 +29,7 @@ void sig_to_exception(int s)
 }
 
 // Generate *nb_events* events with same parameters rho and max_y
-void generate_events(int nb_events, Double_t rho, Double_t max_y, bool with_cutoff, TF1 * cutoff, bool raw_cutoff, const char * tree_file, const char * lut_file)
+void generate_events(int nb_events, Double_t rho, Double_t max_y, Double_t R, bool with_cutoff, TF1 * cutoff, bool raw_cutoff, const char * tree_file, const char * lut_file)
 {
     // Handle interrupt Ctrl-C
     struct sigaction sigIntHandler;
@@ -44,7 +44,7 @@ void generate_events(int nb_events, Double_t rho, Double_t max_y, bool with_cuto
     int current_index;
     try
     {
-        Event e(rho, max_y, lut_file, cutoff, with_cutoff, raw_cutoff);
+        Event e(rho, max_y, R, lut_file, cutoff, with_cutoff, raw_cutoff);
         e.WriteLookupTable(); // in case the cutoff changed
         for (int j = 0; j < nb_events; ++j)
         {
@@ -53,11 +53,12 @@ void generate_events(int nb_events, Double_t rho, Double_t max_y, bool with_cuto
             // The boolean below is for drawing the final splitted dipole
             TTree * tree = new TTree(TString::Format("tree%d", j), "Dipole splitting");
             e.make_tree(tree, false);
-            if (j%1000 == 0)
+            output = tree->GetCurrentFile();
+            /*if (j%1000 == 0)
             {
                 output = tree->GetCurrentFile();
                 output->Write(0,TObject::kOverwrite);
-            }
+            }*/
         }
         // output = tree->GetCurrentFile() ??
         output->Write(0,TObject::kOverwrite);
@@ -184,7 +185,7 @@ void draw_fluctuations(TApplication * myapp, const char * filename,
 /* Compute and fit average number of dipoles with size >= r, x01 and max_y
  * (fit with Bessel function)
  */
-void stat_events(TApplication * myapp, Double_t max_y, Double_t x01)
+void stat_events(TApplication * myapp, Double_t max_y, Double_t x01, const char * filename)
 {
     TCanvas c;
     //c.Divide(2,1,0.05,0.05);
@@ -196,10 +197,10 @@ void stat_events(TApplication * myapp, Double_t max_y, Double_t x01)
     //TH1F * hf = new TH1F("hf", "Total 2", 100, new_bins);
     //hf->Rebin(200, "hf", new_bins);
 
-    TH1D hf("hf", "Radius", 200, 0, 10);
+    TH1D hf("hf", "Radius", 200, 0, 100);
     // Get List of trees independently (in case it was aborted before nb_events)
-    TFile f("tree.root");
-    f.ls();
+    TFile f(filename);
+    //f.ls();
     TList * list = f.GetListOfKeys();
     TIter iter(list->MakeIterator());
     int nb_events = 0;
@@ -213,8 +214,8 @@ void stat_events(TApplication * myapp, Double_t max_y, Double_t x01)
             TTree * tree;
             f.GetObject(theKey->GetName(), tree);
             //tree->Print();
-            tree->Draw("radius >>+hf", ""); 
-            ++nb_events;         
+            tree->Draw("radius >>+hf", "isLeaf"); 
+            ++nb_events;
         }
     }
 

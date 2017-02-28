@@ -24,22 +24,23 @@ Double_t heaviside(Double_t * x, Double_t * p)
     return (x[0] > 2 ? 0.0 : 1.0);
 }
 
-std::string encode_parameters(int nb_events, Double_t rho, Double_t max_y, std::string cutoff_type, std::string optional)
+std::string encode_parameters(int nb_events, Double_t rho, Double_t max_y, Double_t R, std::string cutoff_type, std::string optional)
 {
-    return "mpi_tree_" + std::to_string(nb_events) + "events_cutoff" + std::to_string(rho) + "_ymax" + std::to_string(max_y) + "_" + cutoff_type + "_" + optional + ".root";
+    return "mpi_tree_" + std::to_string(nb_events) + "events_cutoff" + std::to_string(rho) + "_ymax" + std::to_string(max_y) + "_R" + std::to_string(R) + "_" + cutoff_type + "_" + optional + ".root";
 }
 
-void decode_parameters(std::string filename, Double_t * rho, Double_t * max_y, std::string * cutoff_type, int * nb_events)
+void decode_parameters(std::string filename, Double_t * rho, Double_t * max_y, Double_t * R, std::string * cutoff_type, int * nb_events)
 {
     std::string double_regex = "[-+]?[0-9]*\.?[0-9]+";
-    std::regex r("mpi_tree_([[:digit:]]+)events_cutoff("+double_regex+")_ymax("+double_regex+")_(\\w+)_(\\w+).root");
+    std::regex r("mpi_tree_([[:digit:]]+)events_cutoff("+double_regex+")_ymax("+double_regex+")_R(" + double_regex + ")_(\\w+)_(\\w+).root");
     std::smatch m;
     if (std::regex_match(filename, m, r))
     {
         *nb_events = std::stoi(m[1]);
         *rho = std::stod(m[2]);
         *max_y = std::stod(m[3]);
-        *cutoff_type = m[4];
+        *R = std::stod(m[4]);
+        *cutoff_type = m[5];
     }
     else
     {
@@ -74,7 +75,8 @@ int main( int argc, char* argv[] )
     //TF2 * cutoff = new TF2("cutoff", "1 / (1 + exp([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y))))", 0, TMath::Infinity(), 0, TMath::Pi());
     // Heaviside
     //TF2 * cutoff_heaviside = new TF2("cutoff_heaviside", heaviside, 0, TMath::Infinity(), 0, TMath::Pi(), 2);
-    TF1 * cutoff_heaviside = new TF1("cutoff_heaviside", "(x > 2) ? 0.0 : 1.0", 0, TMath::Infinity());
+    TF1 * cutoff_heaviside = new TF1("cutoff_heaviside", "(x > [1] + [0]/[0]) ? 0.0 : 1.0", 0, TMath::Infinity());
+
     //std::cerr << cutoff->Eval(3, 2.5);
     //std::cerr << cutoff->Integral(0, 77, 0, TMath::Pi());
     //cutoff->SetParameter(0, 1.0);
@@ -94,7 +96,7 @@ int main( int argc, char* argv[] )
         std::cout << "Usage: ./main [options] (or mpiexec -np $NB_TASKS ./main [options] if using MPI)" << std::endl;
         std::cout << "Options: \n\t--help : Print usage";
         std::cout << "\n\tgenerate [nb_events] [rho] [max_y] [cutoff_type]";
-        std::cout << "\n\tgenerate-mpi [parameters file]\n\t\t Generate events given the [parameters file].";
+        std::cout << "\n\tgenerate-mpi [parameters file] [id]\n\t\t Generate events given the [parameters file], with identifier [id] (e.g. integer).";
         std::cout << "\n\tfluctuations [filename]";
         std::cout << "\n\tfluctuations-mpi [file]\n\t\t Compute fluctuations for each file in [file].";
         std::cout << "\n\tdraw-fluctuations [histogram file] [max_y]";
@@ -115,6 +117,7 @@ int main( int argc, char* argv[] )
         int nb_events; // Number of events to read/generate
         Double_t rho;
         Double_t max_y;
+        Double_t R;
         std::string cutoff_type;
         unsigned int len; // string length
 
@@ -125,7 +128,7 @@ int main( int argc, char* argv[] )
             if (params.is_open())
             {
                 int i = 0;
-                while (params >> nb_events >> rho >> max_y >> cutoff_type)
+                while (params >> nb_events >> rho >> max_y >> R >> cutoff_type)
                 {
                     ++i;
                     if (i >= size)
@@ -139,6 +142,7 @@ int main( int argc, char* argv[] )
                     MPI_Send(&nb_events, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
                     MPI_Send(&rho, 1, MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
                     MPI_Send(&max_y, 1, MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
+                    MPI_Send(&R, 1, MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
                     MPI_Send(cutoff_type.c_str(), cutoff_type.length(), MPI_CHAR, i, 0, MPI_COMM_WORLD);
                 }
                 params.close();
@@ -151,9 +155,10 @@ int main( int argc, char* argv[] )
             MPI_Recv(&nb_events, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             MPI_Recv(&rho, 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             MPI_Recv(&max_y, 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            MPI_Recv(&R, 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             MPI_Recv(cutoff_type_temp.data(), len, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             cutoff_type.assign(cutoff_type_temp.begin(), cutoff_type_temp.end());
-            std::cout << "Process " << rank << " with " << nb_events << " events, rho = " << rho << ", ymax = " << max_y << ", cutoff " << cutoff_type << std::endl;
+            std::cout << "Process " << rank << " with " << nb_events << " events, rho = " << rho << ", ymax = " << max_y << ", R = " << R << ", cutoff " << cutoff_type << std::endl;
         }
         MPI_Barrier(MPI_COMM_WORLD);
 
@@ -162,14 +167,14 @@ int main( int argc, char* argv[] )
         if (rank > 0)
         {
             // Set up Filenames
-            std::string s = encode_parameters(nb_events, rho, max_y, cutoff_type, "rank" + std::to_string(rank));
+            std::string s = encode_parameters(nb_events, rho, max_y, R, cutoff_type, "rank" + std::to_string(rank) + "_" + argv[3]);
             const char * tree_file = s.c_str();
-            std::string s2 = "lookup_table_" + cutoff_type + "_cutoff" + std::to_string(rho) + "_rank" + std::to_string(rank);
+            std::string s2 = "lookup_table_" + cutoff_type + "_cutoff" + std::to_string(rho) + "_rank" + std::to_string(rank) + "_" + argv[3];
             const char * lut_file = s2.c_str();
 
             try
             {
-                generate_events(nb_events, rho, max_y, true, cutoffs[cutoff_type], false, tree_file, lut_file);
+                generate_events(nb_events, rho, max_y, R, true, cutoffs[cutoff_type], false, tree_file, lut_file);
             }
             catch (...)
             {
@@ -179,21 +184,24 @@ int main( int argc, char* argv[] )
 
         MPI_Finalize();
     }
-    else if (val == "generate")
+    else if (val == "generate") 
     {
         int nb_events = std::stoi(argv[2]); // Number of events to read/generate
         Double_t rho = std::stod(argv[3]);
         Double_t max_y = std::stod(argv[4]);
-        std::string cutoff_type = argv[5];
+        Double_t R = std::stod(argv[5]);
+        std::string cutoff_type = argv[6];
+
         // Set up Filenames
-        std::string s = encode_parameters(nb_events, rho, max_y, cutoff_type, "no_mpi");
+        std::string s = encode_parameters(nb_events, rho, max_y, R, cutoff_type, "no_mpi");
         const char * tree_file = s.c_str();
         std::string s2 = "lookup_table_" + cutoff_type + "_cutoff" + std::to_string(rho);
         const char * lut_file = s2.c_str();
+        cutoffs[cutoff_type]->SetName("cutoff");
 
         try
         {
-            generate_events(nb_events, rho, max_y, true, cutoffs[cutoff_type], false, tree_file, lut_file);
+            generate_events(nb_events, rho, max_y, R, true, cutoffs[cutoff_type], false, tree_file, lut_file);
         }
         catch (...)
         {
@@ -247,10 +255,10 @@ int main( int argc, char* argv[] )
         if (rank > 0)
         {
             std::string filename_hist = filename + "hist";
-            Double_t max_y, rho;
+            Double_t max_y, rho, R;
             std::string cutoff_type;
             int nb_events;
-            decode_parameters(filename, &rho, &max_y, &cutoff_type, &nb_events);
+            decode_parameters(filename, &rho, &max_y, &R, &cutoff_type, &nb_events);
             Double_t r = 0.05; // TODO
             fluctuations(max_y, 1.0, rho, r, filename.c_str(), filename_hist.c_str(), true);
         }
@@ -261,23 +269,23 @@ int main( int argc, char* argv[] )
     {
         std::string filename = argv[2];
         std::string filename_hist = filename + "hist";
-        Double_t max_y, rho;
+        Double_t max_y, rho, R;
         std::string cutoff_type;
         int nb_events;
-        decode_parameters(filename, &rho, &max_y, &cutoff_type, &nb_events);
+        decode_parameters(filename, &rho, &max_y, &R, &cutoff_type, &nb_events);
         Double_t r = 0.05; // TODO
         fluctuations(max_y, 1.0, rho, r, filename.c_str(), filename_hist.c_str(), true);        
     }
     else if (val == "check")
     {
-        Double_t max_y, x01, rho;
+        Double_t max_y, x01, rho, R;
         std::string cutoff_type;
         int nb_events;
         std::string filename = argv[2];
         TFile f(filename.c_str(), "READ");
         int nb_events_real = f.GetListOfKeys()->GetSize();
 
-        decode_parameters(filename, &rho, &max_y, &cutoff_type, &nb_events);
+        decode_parameters(filename, &rho, &max_y, &R, &cutoff_type, &nb_events);
         std::cout << "File " << filename << std::endl;
         std::cout << "Parameters:\n" << "\tRho = " << rho << "\n\tY_max = " << max_y << "\n\tCutoff type = " << cutoff_type;
         std::cout << "\nNumber of events: " << nb_events_real;
@@ -314,6 +322,13 @@ int main( int argc, char* argv[] )
     else if (val == "compare")
     {
         compare_histo(myapp);
+    }
+    else if (val == "stats")
+    {
+        Double_t x01 = std::stod(argv[2]);
+        Double_t max_y = std::stod(argv[3]);
+        std::string filename = argv[4];
+        stat_events(myapp, max_y, x01, filename.c_str());
     }
     else
     {

@@ -47,9 +47,10 @@ double IntegralFunction::operator() (double * x, double * p) const
     }
 }
 
-Event::Event(Double_t rho, Double_t max_y, const char * lut_filename, TF1 * f, bool with_cutoff, bool raw_cutoff) :
+Event::Event(Double_t rho, Double_t max_y, Double_t R, const char * lut_filename, TF1 * f, bool with_cutoff, bool raw_cutoff) :
     rho(rho),
     max_y(max_y),
+    R(R),
     lut_filename(lut_filename),
     cutoff(f),
     WITH_CUTOFF(with_cutoff),
@@ -61,12 +62,12 @@ Event::Event(Double_t rho, Double_t max_y, const char * lut_filename, TF1 * f, b
     }
     if (WITH_CUTOFF && cutoff != NULL)
     {
-        cutoff->SetParameter(1, R);
+        cutoff->SetParameter(1, R); // FIXME set or fix parameter ?
 
         integrand = new TF2("integrand", "cutoff / (x * (1. + x^2 - 2. * x * cos(y)))", 0.0, TMath::Infinity(), 0, TMath::Pi());   
         integralFunction = new IntegralFunction(integrand, "f_cutoff");
         f_cutoff = new TF1("f_cutoff", integralFunction, 0.0 , TMath::Infinity(), 1);
-        f_cutoff->SetNpx(50); // FIXME Npx value      
+        f_cutoff->SetNpx(50); // FIXME Npx value
     }    
 }
 
@@ -490,7 +491,7 @@ bool Event::generate(Dipole * dipole, Dipole * dipole1, Dipole * dipole2, Double
     dipole1->radius *= 2;
     dipole2->radius *= 2;
 
-    if (dipole1->radius < rho || dipole2->radius < rho) std::cout << dipole1->radius << " " << dipole2->radius << std::endl;
+    if (DEBUG && (dipole1->radius < rho || dipole2->radius < rho)) std::cout << dipole1->radius << " " << dipole2->radius << std::endl;
     return true;
 }
 

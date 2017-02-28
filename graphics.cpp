@@ -98,7 +98,7 @@ void fit_bare_r(Double_t rho, Double_t max_y, TApplication * myapp)
     // Event 1 : without cutoff
     // Event 2 : with cutoff, with raw computation
     // Event 3 : with cutoff, no raw computation
-    Event e1(rho, max_y, "lookup_table");
+    Event e1(rho, max_y, 2.0, "lookup_table");
     // Gaussian cutoff
     //TF2 * cutoff = new TF2("cutoff", "exp(-[0] / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y)))", 0, TMath::Infinity(), 0, TMath::Pi());
     // Lorentzian cutoff
@@ -108,8 +108,8 @@ void fit_bare_r(Double_t rho, Double_t max_y, TApplication * myapp)
     // Heaviside
     //TF2 * cutoff = new TF2("cutoff", "(x > (2*[0]) ? 0.0 : 1.0) * y/y", 0, TMath::Infinity(), 0, TMath::Pi());
     TF1 * cutoff = new TF1("cutoff", "(x > 2) ? 0.0 : 1.0", 0, TMath::Infinity());
-    Event e2(rho, max_y, "lookup_table", cutoff, true, true);
-    Event e3(rho, max_y, "lookup_table", cutoff, true, false);
+    Event e2(rho, max_y, 2.0, "lookup_table", cutoff, true, true);
+    Event e3(rho, max_y, 2.0, "lookup_table", cutoff, true, false);
 
     TCanvas canvas("canvas", "Sizes", 1080, 780);
     gPad->SetLogy();
@@ -167,10 +167,10 @@ void fit_bare_r(Double_t rho, Double_t max_y, TApplication * myapp)
 void fit_fluctuations(Double_t rho, Double_t max_y, TApplication * myapp)
 {
     // Compare 3 methods
-    Event e1(rho, max_y, "lookup_table");
+    Event e1(rho, max_y, 2.0, "lookup_table");
     TF2 * cutoff = new TF2("cutoff", "exp(-[0] / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y)))", 0, TMath::Infinity(), 0, TMath::Pi());
-    Event e2(rho, max_y, "lookup_table", cutoff, true, true);
-    Event e3(rho, max_y, "lookup_table", cutoff, true, false);
+    Event e2(rho, max_y, 2.0, "lookup_table", cutoff, true, true);
+    Event e3(rho, max_y, 2.0, "lookup_table", cutoff, true, false);
 
     TCanvas canvas("canvas", "Sizes", 1080, 780);
     gPad->SetLogy();

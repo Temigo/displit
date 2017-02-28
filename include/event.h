@@ -32,7 +32,7 @@ class Event
     const char * lut_filename; // Lookup Table filename
     bool WITH_CUTOFF;
     bool RAW_CUTOFF;
-    Double_t R = 2.0; // cutoff for large sizes
+    Double_t R; // cutoff for large sizes
 
     // Lookup table
     ROOT::Math::Interpolator interpolator;
@@ -40,7 +40,7 @@ class Event
     Double_t x01_min, x01_max;
 
     public:
-        Event(Double_t rho, Double_t max_y, const char * lut_filename, TF1 * f = NULL, bool with_cutoff = false, bool raw_cutoff=false);
+        Event(Double_t rho, Double_t max_y, Double_t R, const char * lut_filename, TF1 * f = NULL, bool with_cutoff = false, bool raw_cutoff=false);
         //Event(const char * filename, TTree * tree);
         ~Event();
 
