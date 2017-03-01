@@ -32,6 +32,7 @@ class Event
     const char * lut_filename; // Lookup Table filename
     bool WITH_CUTOFF;
     bool RAW_CUTOFF;
+    bool MINIMAL;
     Double_t R; // cutoff for large sizes
 
     // Lookup table
@@ -40,7 +41,7 @@ class Event
     Double_t x01_min, x01_max;
 
     public:
-        Event(Double_t rho, Double_t max_y, Double_t R, const char * lut_filename, TF1 * f = NULL, bool with_cutoff = false, bool raw_cutoff=false);
+        Event(Double_t rho, Double_t max_y, Double_t R, const char * lut_filename, TF1 * f = NULL, bool with_cutoff = false, bool raw_cutoff=false, bool minimal=false);
         //Event(const char * filename, TTree * tree);
         ~Event();
 

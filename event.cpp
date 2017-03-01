@@ -47,14 +47,15 @@ double IntegralFunction::operator() (double * x, double * p) const
     }
 }
 
-Event::Event(Double_t rho, Double_t max_y, Double_t R, const char * lut_filename, TF1 * f, bool with_cutoff, bool raw_cutoff) :
+Event::Event(Double_t rho, Double_t max_y, Double_t R, const char * lut_filename, TF1 * f, bool with_cutoff, bool raw_cutoff, bool minimal) :
     rho(rho),
     max_y(max_y),
     R(R),
     lut_filename(lut_filename),
     cutoff(f),
     WITH_CUTOFF(with_cutoff),
-    RAW_CUTOFF(raw_cutoff)
+    RAW_CUTOFF(raw_cutoff),
+    MINIMAL(minimal)
 {
     if (WITH_CUTOFF && cutoff == NULL)
     {
@@ -588,7 +589,10 @@ void Event::make_tree(TTree * tree, bool draw_dipole, bool draw_step_by_step)
         // FIXME for some reason the raw values differ slightly from the tree scan ! 
         //std::cout << dipole1.radius << " " << dipole1.coord.X() << " " << dipole1.coord.Y() <<  std::endl;
         ++i;
-        tree->Fill(); // Stores dipole (parent)
+        if (dipole.isLeaf || !MINIMAL)
+        {
+            tree->Fill(); // Stores dipole (parent)
+        }
         // if step by step
         if (draw_step_by_step)
         {

@@ -44,7 +44,7 @@ void generate_events(int nb_events, Double_t rho, Double_t max_y, Double_t R, bo
     int current_index;
     try
     {
-        Event e(rho, max_y, R, lut_file, cutoff, with_cutoff, raw_cutoff);
+        Event e(rho, max_y, R, lut_file, cutoff, with_cutoff, raw_cutoff, true);
         e.WriteLookupTable(); // in case the cutoff changed
         for (int j = 0; j < nb_events; ++j)
         {
@@ -54,11 +54,11 @@ void generate_events(int nb_events, Double_t rho, Double_t max_y, Double_t R, bo
             TTree * tree = new TTree(TString::Format("tree%d", j), "Dipole splitting");
             e.make_tree(tree, false);
             //output = tree->GetCurrentFile();
-            /*if (j%1000 == 0)
+            if (j%1000 == 0)
             {
                 output = tree->GetCurrentFile();
                 output->Write(0,TObject::kOverwrite);
-            }*/
+            }
         }
         // output = tree->GetCurrentFile() ??
         output->Write(0,TObject::kOverwrite);
