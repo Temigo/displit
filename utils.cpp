@@ -53,7 +53,7 @@ void generate_events(int nb_events, Double_t rho, Double_t max_y, Double_t R, bo
             // The boolean below is for drawing the final splitted dipole
             TTree * tree = new TTree(TString::Format("tree%d", j), "Dipole splitting");
             e.make_tree(tree, false);
-            output = tree->GetCurrentFile();
+            //output = tree->GetCurrentFile();
             /*if (j%1000 == 0)
             {
                 output = tree->GetCurrentFile();

@@ -247,7 +247,7 @@ void Event::WriteLookupTable()
     // We shouldn't need to go under the cutoff rho for small sizes
     Double_t step = 0.0000000000000000000000000000001;
     Double_t l;
-    std::cout << "Writing lookup table... ";
+    if (DEBUG) std::cout << "Writing lookup table... ";
     std::ofstream lut(lut_filename);
     if (lut.is_open())
     {
@@ -261,14 +261,14 @@ void Event::WriteLookupTable()
         }
         lut.close();
     }
-    std::cout << "Done." << std::endl;
+    if (DEBUG) std::cout << "Done." << std::endl;
 }
 
 /* Loads the lookup table from __filename__ and put it into Interpolator
  */
 void Event::LoadLookupTable()
 {
-    std::cout << "Reading lookup table..." << std::endl;
+    if (DEBUG) std::cout << "Reading lookup table..." << std::endl;
     std::ifstream lut(lut_filename);
     Double_t rho_lut;
     bool cutoff;
@@ -298,17 +298,17 @@ void Event::LoadLookupTable()
     interpolator.SetData(x01, l);
     x01_min = x01.front();
     x01_max = x01.back();
-    std::cout << "\033[1;32m Done. \033[0m" << std::endl;
+    if (DEBUG) std::cout << "\033[1;32m Done. \033[0m" << std::endl;
 }
 
 void Event::PrintLookupTable()
 {
-    std::cout << "Printing lookup table..." << std::endl;
+    if (DEBUG) std::cout << "Printing lookup table..." << std::endl;
     for (auto const& x: lookup_table)
     {
         std::cout << x.first << " " << x.second << std::endl;
     }
-    std::cout << "done." << std::endl;    
+    if (DEBUG) std::cout << "done." << std::endl;    
 }
 
 void Event::SetInterpolatorData()
@@ -331,11 +331,11 @@ Double_t Event::getLambda(Double_t x01)
     // Interpolate
     if (x01_min > x01)
     {
-        std::cout << RED << "Warning : x01 out of lookup table range (lower values). This is not supposed to happen !" << RESET << std::endl;
+        if (DEBUG) std::cout << RED << "Warning : x01 out of lookup table range (lower values). This is not supposed to happen !" << RESET << std::endl;
     }
     if (x01 > x01_max)
     {
-        std::cout << RED << "Warning : x01 out of lookup table range (upper values)." << RESET << " \n Adding entry for " << x01 << std::endl;
+        if (DEBUG) std::cout << RED << "Warning : x01 out of lookup table range (upper values)." << RESET << " \n Adding entry for " << x01 << std::endl;
         // Add new points permanently in the LUT
         Double_t x01_from = x01_max;
         int p = TMath::Floor(TMath::Log10(x01_from));
@@ -353,7 +353,7 @@ Double_t Event::getLambda(Double_t x01)
                 lookup_table.insert(std::pair<Double_t, Double_t>(x01_from, l));
                 lut << x01_from << " " << l << "\n";
                 ++i;
-                std::cout << x01_from << " " << l << std::endl;
+                if (DEBUG) std::cout << x01_from << " " << l << std::endl;
             }
             lut.close();
         }
