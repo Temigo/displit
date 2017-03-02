@@ -85,7 +85,7 @@ void generate_events(int nb_events, Double_t rho, Double_t max_y, Double_t R, bo
 void fluctuations(Double_t max_y, Double_t x01, Double_t rho, Double_t r, 
                   const char * filename, 
                   const char * filename_hist, 
-                  bool with_cutoff)
+                  bool with_cutoff, bool minimal)
 {
     bool logX = false;
     
@@ -110,7 +110,15 @@ void fluctuations(Double_t max_y, Double_t x01, Double_t rho, Double_t r,
         {
             TTree * tree;
             f.GetObject(theKey->GetName(), tree);
-            int n = tree->Draw("radius", TString::Format("isLeaf && radius >= %.12g", r), "goff");
+            int n;
+            if (minimal)
+            {
+                n = tree->Draw("radius", TString::Format("radius >= %.12g", r), "goff");
+            }
+            else
+            {
+                n = tree->Draw("radius", TString::Format("isLeaf && radius >= %.12g", r), "goff");
+            }
             hfluct->Fill(n);
             std::cout << "\r" << nb_events;
             delete tree;
@@ -185,7 +193,7 @@ void draw_fluctuations(TApplication * myapp, const char * filename,
 /* Compute and fit average number of dipoles with size >= r, x01 and max_y
  * (fit with Bessel function)
  */
-void stat_events(TApplication * myapp, Double_t max_y, Double_t x01, const char * filename)
+void stat_events(TApplication * myapp, Double_t max_y, Double_t x01, const char * filename, bool minimal)
 {
     TCanvas c;
     //c.Divide(2,1,0.05,0.05);
@@ -214,7 +222,14 @@ void stat_events(TApplication * myapp, Double_t max_y, Double_t x01, const char 
             TTree * tree;
             f.GetObject(theKey->GetName(), tree);
             //tree->Print();
-            tree->Draw("radius >>+hf", "isLeaf"); 
+            if (minimal)
+            {
+                tree->Draw("radius >>+hf", ""); 
+            }
+            else
+            {
+                tree->Draw("radius >>+hf", "isLeaf"); 
+            }
             ++nb_events;
         }
     }
@@ -314,17 +329,32 @@ Long64_t GetCommonAncestors(TTree * tree, Long64_t i1, Long64_t i2)
 /* Select randomly k leaves
 * Return true if it was possible
 */
-bool RandomSelectkLeaves(TTree * tree, Long64_t indexes[], int k)
+bool RandomSelectkLeaves(TTree * tree, Long64_t indexes[], int k, bool minimal)
 {
     gRandom->SetSeed();
     //EventTree * t = new EventTree(tree);
-    Long64_t nleaves = tree->GetEntries("isLeaf");
+    Long64_t nleaves;
+    if (minimal)
+    {
+        nleaves = tree->GetEntries("isLeaf");
+    }
+    else
+    {
+        nleaves = tree->GetEntries("isLeaf");
+    }
     //Long64_t nentries = tree->GetEntries();
     //std::cout << nleaves << " leaves" << std::endl;
     if (nleaves < k) return false;
 
     //tree->Scan("depth:index_children:index_parent");
-    tree->Draw(">>leaves", "isLeaf", "entrylist");
+    if (minimal)
+    {
+        tree->Draw(">>leaves", "", "entrylist");
+    }
+    else
+    {
+        tree->Draw(">>leaves", "isLeaf", "entrylist");
+    }
     TEntryList * elist = (TEntryList *) gDirectory->Get("leaves");
     for (Long64_t j = 0; j < k; ++j)
     {
@@ -345,7 +375,7 @@ bool RandomSelectkLeaves(TTree * tree, Long64_t indexes[], int k)
     return true;
 }
 
-void CommonAncestorPlot(TApplication * myapp, int nb_events, Double_t max_y, Double_t x01, Double_t rho, const char * filename)
+void CommonAncestorPlot(TApplication * myapp, int nb_events, Double_t max_y, Double_t x01, Double_t rho, const char * filename, bool minimal)
 {
     int k = 3; // Randomly select k leaves in each event
 
@@ -372,7 +402,7 @@ void CommonAncestorPlot(TApplication * myapp, int nb_events, Double_t max_y, Dou
         f.GetObject(TString::Format("tree%d", j), tree);
         //tree->Print();
         std::cout << j << std::endl;
-        if (RandomSelectkLeaves(tree, indexes, k))
+        if (RandomSelectkLeaves(tree, indexes, k, minimal))
         {
             //std::cout << indexes[0] << " " << indexes[1] << " " << indexes[2] << std::endl;
             Long64_t a = indexes[0];

@@ -508,7 +508,7 @@ void Event::make_tree(TTree * tree, bool draw_dipole, bool draw_step_by_step)
     // Essential branches
     tree->Branch("rapidity", &dipole.rapidity, "rapidity/D");
     tree->Branch("radius", &dipole.radius, "radius/D");
-    tree->Branch("isLeaf", &dipole.isLeaf, "isLeaf/O");
+    //tree->Branch("isLeaf", &dipole.isLeaf, "isLeaf/O");
     // For drawing purpose ?
     //tree->Branch("phi", &dipole.phi, "phi/D");
     //tree->Branch("coord", "TVector2", &dipole.coord);

@@ -87,6 +87,8 @@ int main( int argc, char* argv[] )
         {"rigid", cutoff_heaviside}
     };
 
+    bool MINIMAL = true;
+
     if (val == "-h" || val == "--help")
     {
         std::cout << "Usage: ./main [options] (or mpiexec -np $NB_TASKS ./main [options] if using MPI)" << std::endl;
@@ -242,12 +244,13 @@ int main( int argc, char* argv[] )
 
         if (rank > 0)
         {
-            std::string filename_hist = filename + "_hist";
+            std::string filename_hist = filename + "_hist_r" + std::to_string(r);
             Double_t max_y, rho, R;
             std::string cutoff_type;
             int nb_events;
             decode_parameters(filename, &rho, &max_y, &R, &cutoff_type, &nb_events);
-            fluctuations(max_y, 1.0, rho, r, filename.c_str(), filename_hist.c_str(), true);
+            std::cout << rho << " " << max_y << " " << R << " " << cutoff_type << " " << nb_events << std::endl;
+            fluctuations(max_y, 1.0, rho, r, filename.c_str(), filename_hist.c_str(), true, MINIMAL);
         }
 
         MPI_Finalize();
@@ -261,7 +264,8 @@ int main( int argc, char* argv[] )
         std::string cutoff_type;
         int nb_events;
         decode_parameters(filename, &rho, &max_y, &R, &cutoff_type, &nb_events);
-        fluctuations(max_y, 1.0, rho, r, filename.c_str(), filename_hist.c_str(), true);        
+        std::cout << rho << " " << max_y << " " << R << " " << cutoff_type << " " << nb_events << std::endl;
+        fluctuations(max_y, 1.0, rho, r, filename.c_str(), filename_hist.c_str(), true, MINIMAL);        
     }
     else if (val == "check")
     {
@@ -292,7 +296,7 @@ int main( int argc, char* argv[] )
         int nb_events = std::stoi(argv[2]);
         Double_t rho = std::stoi(argv[3]);
         Double_t max_y = std::stoi(argv[4]);
-        CommonAncestorPlot(myapp, nb_events, max_y, 1.0, rho, "ancestors");
+        CommonAncestorPlot(myapp, nb_events, max_y, 1.0, rho, "ancestors", true);
     }
     else if (val == "draw-cutoffs")
     {
@@ -315,12 +319,7 @@ int main( int argc, char* argv[] )
         Double_t x01 = std::stod(argv[2]);
         Double_t max_y = std::stod(argv[3]);
         std::string filename = argv[4];
-        stat_events(myapp, max_y, x01, filename.c_str());
-    }
-    else if (val == "merge")
-    {
-        // merge chain of files
-        
+        stat_events(myapp, max_y, x01, filename.c_str(), MINIMAL);
     }
     else
     {
