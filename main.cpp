@@ -32,9 +32,9 @@ std::string encode_parameters(int nb_events, Double_t rho, Double_t max_y, Doubl
 void decode_parameters(std::string filename, Double_t * rho, Double_t * max_y, Double_t * R, std::string * cutoff_type, int * nb_events)
 {
     std::string double_regex = "[-+]?[0-9]*\.?[0-9]+";
-    std::regex r("mpi_tree_([[:digit:]]+)events_cutoff("+double_regex+")_ymax("+double_regex+")_R(" + double_regex + ")_([^\\W_]+)_(\\w+)_*.root");
+    std::regex r("mpi_tree_([[:digit:]]+)events_cutoff("+double_regex+")_ymax("+double_regex+")_R(" + double_regex + ")_(([^\\W_]|[0-9])+)");
     std::smatch m;
-    if (std::regex_match(filename, m, r))
+    if (std::regex_search(filename, m, r))
     {
         *nb_events = std::stoi(m[1]);
         *rho = std::stod(m[2]);
@@ -75,7 +75,7 @@ int main( int argc, char* argv[] )
     //TF2 * cutoff = new TF2("cutoff", "1 / (1 + exp([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y))))", 0, TMath::Infinity(), 0, TMath::Pi());
     // Heaviside
     //TF2 * cutoff_heaviside = new TF2("cutoff_heaviside", heaviside, 0, TMath::Infinity(), 0, TMath::Pi(), 2);
-    TF1 * cutoff_heaviside = new TF1("cutoff_heaviside", "(x > [1] + [0]/[0]) ? 0.0 : 1.0", 0, TMath::Infinity());
+    TF1 * cutoff_heaviside = new TF1("cutoff_heaviside", "(x > [1]/[0]) ? 0.0 : 1.0", 0, TMath::Infinity());
     // TODO cutoff arctan 
 
     std::map<std::string, TF1 *> cutoffs = {
@@ -196,6 +196,126 @@ int main( int argc, char* argv[] )
 
         generate_events(nb_events, rho, max_y, R, true, cutoffs[cutoff_type], false, tree_file, lut_file);
     }
+    else if (val == "generate-fluctuations-mpi")
+    {
+        int rank, size; // rank of the process and number of processes
+        MPI_Init(NULL, NULL);
+
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+        int nb_events; // Number of events to read/generate
+        int repeat;
+        Double_t rho;
+        Double_t max_y;
+        Double_t R;
+        std::string cutoff_type;
+        unsigned int len; // string length
+
+        std::vector<Double_t> r {0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.1, 0.11, 0.12, 0.13, 0.14, 0.15, 0.2, 0.3, 0.4, 0.5};
+
+        if (rank == 0)
+        {
+            std::cerr << size << " processes" << std::endl;
+            std::ifstream params(argv[2]);
+            if (params.is_open())
+            {
+                int i = 0;
+                while (params >> repeat >> nb_events >> rho >> max_y >> R >> cutoff_type)
+                {
+                    for (int j = 0; j <repeat; ++j)
+                    {
+                        ++i;
+                        if (i >= size)
+                        {
+                            std::cout << "Warning : not enough processes. I stop reading parameters here." << std::endl;
+                            break;
+                        }
+                        len = cutoff_type.length();
+                        std::cout << "Sending to process " << i << std::endl;
+                        MPI_Send(&len, 1, MPI_UNSIGNED, i, 0, MPI_COMM_WORLD);
+                        MPI_Send(&nb_events, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
+                        MPI_Send(&rho, 1, MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
+                        MPI_Send(&max_y, 1, MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
+                        MPI_Send(&R, 1, MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
+                        MPI_Send(cutoff_type.c_str(), cutoff_type.length(), MPI_CHAR, i, 0, MPI_COMM_WORLD);
+                    }
+                }
+                params.close();
+            }            
+        }
+        else // TODO fix it if process rank too big
+        {
+            MPI_Recv(&len, 1, MPI_UNSIGNED, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            std::vector<char> cutoff_type_temp(len);
+            MPI_Recv(&nb_events, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            MPI_Recv(&rho, 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            MPI_Recv(&max_y, 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            MPI_Recv(&R, 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            MPI_Recv(cutoff_type_temp.data(), len, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            cutoff_type.assign(cutoff_type_temp.begin(), cutoff_type_temp.end());
+            std::cout << "Process " << rank << " with " << nb_events << " events, rho = " << rho << ", ymax = " << max_y << ", R = " << R << ", cutoff " << cutoff_type << std::endl;
+        }
+        MPI_Barrier(MPI_COMM_WORLD);
+        if (rank == 0) std::cout << "\n** BEGIN GENERATION **\n" << std::endl;
+
+        cutoffs[cutoff_type]->SetName("cutoff");
+
+        if (rank > 0)
+        {
+            // Set up Filenames
+            std::string s = encode_parameters(nb_events, rho, max_y, R, cutoff_type, "rank" + std::to_string(rank) + "_" + argv[3]);
+            const char * tree_file = s.c_str();
+            std::string s2 = "lookup_table_" + cutoff_type + "_cutoff" + std::to_string(rho) + "_rank" + std::to_string(rank) + "_" + argv[3];
+            const char * lut_file = s2.c_str();
+
+            generate_histograms(nb_events, rho, max_y, R, true, cutoffs[cutoff_type], false, tree_file, lut_file, r);
+        }
+        MPI_Barrier(MPI_COMM_WORLD);
+
+        // merge results and output one ROOT histogram file per value of r and parameters set
+        if (rank == 0)
+        {
+            std::ifstream params(argv[2]);
+            if (params.is_open())
+            {
+                int i = 0;
+                while (params >> repeat >> nb_events >> rho >> max_y >> R >> cutoff_type)
+                {
+                    for (int k = 0; k < r.size(); ++k)
+                    {
+                        std::string s2 = encode_parameters(nb_events, rho, max_y, R, cutoff_type, "rank" + std::to_string(0) + "_" + argv[3]);
+                        s2.append("_r" + std::to_string(r[k]) + "_FINAL");
+                        TFile * f = new TFile(s2.c_str(), "recreate");
+                        TH1F * hist = new TH1F("hfluct", "hfluct", 100, 0, 0);
+                        for (int j = 0; j <repeat; ++j)
+                        {
+                            ++i;
+                            std::string s = encode_parameters(nb_events, rho, max_y, R, cutoff_type, "rank" + std::to_string(i) + "_" + argv[3]);
+                            s.append("_r" + std::to_string(r[k]));
+                            //std::cout << s << std::endl;
+                            std::ifstream out;
+                            out.open(s);
+                            if (out.is_open())
+                            {
+                                int n;
+                                while (out >> n)
+                                {
+                                    hist->Fill(n);
+                                }
+                            }
+                            out.close();
+                        }
+                        hist->Write();
+                        f->Close();
+                    }
+                }
+                params.close();
+            }            
+        }
+
+        MPI_Finalize();
+    }
     else if (val == "fluctuations-mpi")
     {
         int rank, size; // rank of the process and number of processes
@@ -305,9 +425,14 @@ int main( int argc, char* argv[] )
     {
         std::string filename = argv[2];
         Double_t x01 = 1.0;
-        Double_t r = 0.05;
-        Double_t max_y = std::stod(argv[3]);
-        draw_fluctuations(myapp, filename.c_str(), false, true, x01, r, max_y);
+        Double_t rho, max_y, R;
+        Double_t r = std::stod(argv[3]);
+        std::string cutoff_type;
+        int nb_events;
+
+        decode_parameters(filename, &rho, &max_y, &R, &cutoff_type, &nb_events);
+        std::cout << rho << " " << max_y << " " << R << " " << cutoff_type << " " << nb_events << std::endl;
+        draw_fluctuations(myapp, filename.c_str(), false, true, x01, r, max_y, R);
     }
     else if (val == "compare")
     {
@@ -319,6 +444,31 @@ int main( int argc, char* argv[] )
         Double_t max_y = std::stod(argv[3]);
         std::string filename = argv[4];
         stat_events(myapp, max_y, x01, filename.c_str(), MINIMAL);
+    }
+    else if (val == "merge")
+    {
+        std::ifstream files(argv[2]);
+        std::string filename;
+        TH1F * hresult = new TH1F("hresult", "hresult", 100, 0, 6);
+        TList * list = new TList;
+        if (files.is_open())
+        {
+            while (files >> filename)
+            {
+                TFile f(filename.c_str());
+                TH1F* hfluct = n_to_nbar((TH1F*) f.Get("hfluct"));
+                hfluct->SetDirectory(0);
+                list->Add(hfluct);
+                //hresult->Add(hresult, hfluct);
+                f.Close();
+                std::cout << filename << std::endl;
+            }
+            files.close();
+        }
+        hresult->Merge(list);
+        hresult->Draw("E1");
+        myapp->Run();
+
     }
     else
     {

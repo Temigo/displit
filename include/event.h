@@ -2,11 +2,14 @@
 #include "color_codes.h"
 
 #include <TTree.h>
-#include <map>
 #include <Math/Interpolator.h>
 #include <TF2.h>
 #include <TF12.h>
-#include<TMath.h>
+#include <TMath.h>
+#include <TH1F.h>
+
+#include <map>
+#include <vector>
 
 Double_t phi(Double_t r);
 
@@ -68,4 +71,5 @@ class Event
         void fit_x();
         
         void make_tree(TTree * tree, bool draw_dipole = false, bool draw_step_by_step = false);
+        std::vector<int> make_histograms(std::vector<Double_t> r);
 };

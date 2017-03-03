@@ -1,5 +1,6 @@
 #include "graphics.h"
 #include "event.h"
+#include "utils.h"
 
 #include <TCanvas.h>
 #include <TStyle.h>
@@ -249,6 +250,7 @@ void compare_histo(TApplication * myapp)
 {
     TCanvas canvas("canvas", "Sizes", 1080, 780);
     gPad->SetLogy();
+    gStyle->SetOptStat(0); // get rid of the statistics box
 
     TFile f1("mpi_tree_100000events_cutoff0.010000_ymax2.000000_gaussian.roothist", "READ");
     TFile f2("mpi_tree_100000events_cutoff0.010000_ymax2.000000_lorentzian1.roothist", "READ");
@@ -259,14 +261,14 @@ void compare_histo(TApplication * myapp)
     TFile f6("mpi_tree_100000events_cutoff0.010000_ymax3.000000_gaussian.roothist", "READ");
     TFile f7("mpi_tree_100000events_cutoff0.010000_ymax3.000000_rigid.roothist", "READ");
     //TH1F * h1 = new TH1F("hist1", "hist1", 100, 0, 100); 
-    TH1F * h1 = (TH1F*)f1.Get("hfluct");
-    TH1F * h2 = (TH1F*)f2.Get("hfluct");
-    TH1F * h3 = (TH1F*)f3.Get("hfluct");
-    TH1F * h4 = (TH1F*)f4.Get("hfluct");
-    TH1F * h5 = (TH1F*)f5.Get("hfluct");
+    TH1F * h1 = n_to_nbar((TH1F*)f1.Get("hfluct"));
+    TH1F * h2 = n_to_nbar((TH1F*)f2.Get("hfluct"));
+    TH1F * h3 = n_to_nbar((TH1F*)f3.Get("hfluct"));
+    TH1F * h4 = n_to_nbar((TH1F*)f4.Get("hfluct"));
+    TH1F * h5 = n_to_nbar((TH1F*)f5.Get("hfluct"));
 
-    TH1F * h6 = (TH1F*)f6.Get("hfluct");
-    TH1F * h7 = (TH1F*)f7.Get("hfluct");    
+    TH1F * h6 = n_to_nbar((TH1F*)f6.Get("hfluct"));
+    TH1F * h7 = n_to_nbar((TH1F*)f7.Get("hfluct"));    
 
     h1->SetLineColor(30);
     h2->SetLineColor(40);
@@ -284,7 +286,7 @@ void compare_histo(TApplication * myapp)
     h6->SetLineWidth(3);
     h7->SetLineWidth(3);
 
-    /*h1->Draw("E1");
+    h1->Draw("E1");
     h2->Draw("E1 same");
     h3->Draw("E1 same");
     h4->Draw("E1 same");
@@ -300,9 +302,9 @@ void compare_histo(TApplication * myapp)
     legend.AddEntry(h4,"Lorentzian (2)", "L");
     legend.AddEntry(h5,"Lorentzian (3)", "L");
     //legend.AddEntry(&fr1, "Fit (formula without cutoff)", "L");
-    legend.Draw();*/
+    legend.Draw();
 
-    h6->Draw("E1");
+    /*h6->Draw("E1");
     h7->Draw("E1 same");
 
     TLegend legend(0.2, 0.2, 0.6, 0.4);
@@ -313,24 +315,20 @@ void compare_histo(TApplication * myapp)
     legend.AddEntry(h7,"Rigid", "L");
     legend.Draw();
 
-    Double_t nbar = h6->GetMean();
     // Parameter 0 : proportionality | 3 : c
-    TF1 pn_cutoff("pn_cutoff", "[0] * [1]^2 / [2]^2 * exp(-[1]^2/(2. * [2]^2)) * exp(-x/([3] * [4]))", nbar, 4*nbar);
+    TF1 pn_cutoff("pn_cutoff", "[0] * [1]^2 / [2]^2 * exp(-[1]^2/(2. * [2]^2)) * exp(-x/[3])", 1, 4);
     pn_cutoff.FixParameter(1, 1.0);
     pn_cutoff.FixParameter(2, 2.0); // R
     pn_cutoff.SetParLimits(3, 0.01, 20);
-    pn_cutoff.FixParameter(4, nbar); // mean n
     h6->Fit("pn_cutoff", "*IR+");
 
-    Double_t nbar7 = h7->GetMean();
     // Parameter 0 : proportionality | 3 : c
-    TF1 pn_cutoff7("pn_cutoff7", "[0] * [1]^2 / [2]^2 * exp(-[1]^2/(2. * [2]^2)) * exp(-x/([3] * [4]))", nbar7, 4*nbar7);
+    TF1 pn_cutoff7("pn_cutoff7", "[0] * [1]^2 / [2]^2 * exp(-[1]^2/(2. * [2]^2)) * exp(-x/[3])", 1, 4);
     pn_cutoff7.FixParameter(1, 1.0);
     pn_cutoff7.FixParameter(2, 2.0); // R
     pn_cutoff7.SetParLimits(3, 0.01, 20);
-    pn_cutoff7.FixParameter(4, nbar7); // mean n
     h7->Fit("pn_cutoff7", "*IR+");    
-    //canvas.SetTitle(TString::Format("Chi2 : %.12g", pn_cutoff.GetChisquare()));
+    //canvas.SetTitle(TString::Format("Chi2 : %.12g", pn_cutoff.GetChisquare()));*/
 
     canvas.Update();
     myapp->Run();

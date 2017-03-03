@@ -627,6 +627,96 @@ void Event::make_tree(TTree * tree, bool draw_dipole, bool draw_step_by_step)
     //return tree;
 }
 
+std::vector<int> Event::make_histograms(std::vector<Double_t> r)
+{
+    gRandom->SetSeed(); // /!\ IMPORTANT or we always get the same values
+    Dipole dipole(0,0); // must be initialized before setting branch adresses
+
+    std::vector<int> n; // number of dipoles of size >= r
+    for (int k = 0; k < r.size(); ++k)
+    {
+        n.push_back(0);
+    }
+
+    std::queue<Dipole> dipoles;
+    dipoles.push(dipole);
+
+    int i = 0;
+    Long64_t index = -1; // index of the dipole at current depth
+
+    Long64_t current_depth = 0;
+    Long64_t current_depth_dipoles = 1; // Number of dipoles at current depth
+    Long64_t current_depth_dipoles_split = 0;
+
+    // Tree is filled in a Breadth first search (BFS) order
+    while (!dipoles.empty())
+    {
+        dipole = dipoles.front();
+        dipoles.pop();
+
+        // Determine current depth
+        if (dipole.depth > current_depth) // Beginning to fill a new level
+        {
+            current_depth = dipole.depth; 
+            // Constant throughout the current depth
+            current_depth_dipoles = 2 * current_depth_dipoles_split;
+            // Incremented throughout the current depth
+            current_depth_dipoles_split = 0;
+            index = 0;
+        }
+        else // Increment index of the dipole in current depth
+        {
+            if (index < std::numeric_limits<Long64_t>::max())
+            {
+                index += 1;
+            }
+            else
+            {
+                std::cout << "Warning : overflow on index value" << std::endl;
+                break;
+            }
+        }
+        dipole.index = i;
+        dipole.nb_left_brothers_split = current_depth_dipoles_split;
+        dipole.nb_right_brothers = current_depth_dipoles - index - 1;
+
+        Long64_t children_index = dipole.index + dipole.nb_right_brothers + 2 * dipole.nb_left_brothers_split + 1;
+        //std::cout << dipole.index << " " << dipole.nb_left_brothers_split << " " << dipole.nb_right_brothers << " " << children_index << std::endl;
+        
+        Dipole dipole1(dipole.depth + 1, children_index), 
+               dipole2(dipole.depth + 1, children_index + 1);
+        bool success = generate(&dipole, &dipole1, &dipole2, max_y);
+        if (success)
+        {
+            dipole1.index_parent = dipole.index;
+            dipole2.index_parent = dipole.index;
+            dipoles.push(dipole1);
+            dipoles.push(dipole2);
+            current_depth_dipoles_split += 1;    
+            dipole.index_children = children_index;
+        }
+        else
+        {
+            dipole.isLeaf = true;
+        }
+                  
+        // FIXME for some reason the raw values differ slightly from the tree scan ! 
+        //std::cout << dipole1.radius << " " << dipole1.coord.X() << " " << dipole1.coord.Y() <<  std::endl;
+        ++i;
+        if (dipole.isLeaf)
+        {
+            for (int k = 0; k < r.size(); ++k)
+            {
+                if (dipole.radius >= r[k]) n[k] += 1;
+            }
+        }
+        if (DEBUG) std::cout << "\r" << i << " dipôles générés";
+    }
+
+    if (DEBUG) std::cout << std::endl;
+    return n;
+}
+
 /********************************************* NORMALIZED + FIT *************************/
 
 // Split 1 dipole - to test the distribution

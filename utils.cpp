@@ -18,9 +18,31 @@
 #include <TROOT.h>
 #include <TEntryList.h>
 #include <TKey.h>
+#include <TStyle.h>
+#include <TImage.h>
 
 #include <exception>
 #include <signal.h>
+#include <fstream>
+#include <memory>
+
+TH1F * n_to_nbar(TH1F * old_hist)
+{
+    old_hist->Sumw2();
+    TH1F * new_hist = new TH1F("hfluct2", "hfluct2", old_hist->GetNbinsX(), 0, old_hist->GetXaxis()->GetXmax()/old_hist->GetMean());
+    Double_t nbar = old_hist->GetMean();
+    int nbins = old_hist->GetXaxis()->GetNbins();
+    for (int i = 1; i<=nbins; ++i)
+    {
+        Double_t y = old_hist->GetBinContent(i);
+        Double_t x = old_hist->GetXaxis()->GetBinCenter(i);
+        Double_t error = old_hist->GetBinError(i);
+        Double_t xnew = x / nbar;
+        new_hist->Fill(xnew, y);
+        new_hist->SetBinError(i, error);
+    }
+    return new_hist;
+}
 
 void sig_to_exception(int s)
 {
@@ -28,6 +50,44 @@ void sig_to_exception(int s)
     throw s;
 }
 
+void generate_histograms(int nb_events, Double_t rho, Double_t max_y, Double_t R, 
+                        bool with_cutoff, TF1 * cutoff, bool raw_cutoff, 
+                        const char * histogram_file, const char * lut_file,
+                        std::vector<Double_t> r)
+{
+    //TFile * output = new TFile(histogram_file, "recreate");
+    std::cout << "Rho = " << rho << " ; Maximum rapidity = " << max_y << std::endl;
+    std::cout << "With cutoff = " << with_cutoff << " ; Raw computation = " << raw_cutoff << std::endl;
+    int current_index;
+
+    std::vector<std::shared_ptr<std::ofstream> > histograms;
+
+    for (int k = 0; k < r.size(); ++k)
+    {
+        std::string s(histogram_file);
+        s.append("_r" + std::to_string(r[k]));
+        histograms.push_back(std::make_shared<std::ofstream>(s.c_str()));
+    }
+
+    Event e(rho, max_y, R, lut_file, cutoff, with_cutoff, raw_cutoff, true);
+    e.WriteLookupTable(); // in case the cutoff changed
+    for (int j = 0; j < nb_events; ++j)
+    {
+        current_index = j;
+        if (DEBUG) std::cout << BLUE << "Event " << j << RESET << std::endl;
+        // The boolean below is for drawing the final splitted dipole
+        //TTree * tree = new TTree(TString::Format("tree%d", j), "Dipole splitting");
+        std::vector<int> n = e.make_histograms(r);
+        for (int k = 0; k < histograms.size(); ++k)
+        {
+            //std::cout << r[k] << " " << n[k] << std::endl;
+            (*histograms[k]) << n[k] << "\n";
+        }        
+    }     
+
+    // generate histogram from files ?
+    std::cout << "Generated and saved " << nb_events << " events in " << histogram_file << std::endl;
+}
 // Generate *nb_events* events with same parameters rho and max_y
 void generate_events(int nb_events, Double_t rho, Double_t max_y, Double_t R, bool with_cutoff, TF1 * cutoff, bool raw_cutoff, const char * tree_file, const char * lut_file)
 {
@@ -150,33 +210,32 @@ void fluctuations(Double_t max_y, Double_t x01, Double_t rho, Double_t r,
 
 void draw_fluctuations(TApplication * myapp, const char * filename, 
                         bool logX, bool with_cutoff, 
-                        Double_t x01, Double_t r, Double_t max_y)
+                        Double_t x01, Double_t r, Double_t max_y, Double_t R)
 {
     TCanvas c;
 
     c.cd(1);
     if (logX) gPad->SetLogx();
     gPad->SetLogy();
+    gStyle->SetOptStat(0); // get rid of the statistics box
 
     TFile f(filename, "READ");
-    TH1F * hfluct = (TH1F*) gDirectory->Get("hfluct");
+    TH1F * hfluct = n_to_nbar((TH1F*) gDirectory->Get("hfluct"));
     hfluct->Draw("E1");
 
     if (with_cutoff)
     {
-        Double_t nbar = hfluct->GetMean();
         // Parameter 0 : proportionality | 3 : c
-        TF1 pn_cutoff("pn_cutoff", "[0] * [1]^2 / [2]^2 * exp(-[1]^2/(2. * [2]^2)) * exp(-x/([3] * [4]))", nbar, 4*nbar);
+        TF1 pn_cutoff("pn_cutoff", "[0] * [1]^2 / [2]^2 * exp(-[1]^2/(2. * [2]^2)) * exp(-x/[3])", 1, 5);
         pn_cutoff.FixParameter(1, x01);
-        pn_cutoff.FixParameter(2, 2.0); // R
-        pn_cutoff.SetParLimits(3, 0.01, 20);
-        pn_cutoff.FixParameter(4, nbar); // mean n
+        pn_cutoff.FixParameter(2, R);
+        pn_cutoff.SetParLimits(3, 0.01, 20); // range for c
         hfluct->Fit("pn_cutoff", "*IR+");
         c.SetTitle(TString::Format("Chi2 : %.12g", pn_cutoff.GetChisquare()));
     }
     else // no cutoff IR
     {
-        TF1 pn("pn", "[0] / x * [1] * [1] / ([2] * [2]) * exp(- log(x)*log(x)/(4*[3]))", 1000, 2000);
+        TF1 pn("pn", "[0] / x * [1] * [1] / ([2] * [2]) * exp(- log(x)*log(x)/(4*[3]))", 1, 2);
         pn.FixParameter(1, x01);
         pn.FixParameter(2, r);
         pn.FixParameter(3, max_y);
@@ -184,9 +243,16 @@ void draw_fluctuations(TApplication * myapp, const char * filename,
         hfluct->Fit("pn", "IR");
         c.SetTitle(TString::Format("Chi2 : %.12g", pn.GetChisquare()));
     }
-
     c.Update();
-    myapp->Run();
+
+    TImage * img = TImage::Create();
+    img->FromPad(&c);
+    std::string s(filename);
+    s.append(".png");
+    img->WriteImage(s.c_str());
+    delete img;
+
+    myapp->Run();    
 }
 
 
