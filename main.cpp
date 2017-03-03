@@ -31,9 +31,8 @@ std::string encode_parameters(int nb_events, Double_t rho, Double_t max_y, Doubl
 
 void decode_parameters(std::string filename, Double_t * rho, Double_t * max_y, Double_t * R, std::string * cutoff_type, int * nb_events)
 {
-    // fixme error
     std::string double_regex = "[-+]?[0-9]*\.?[0-9]+";
-    std::regex r("mpi_tree_([[:digit:]]+)events_cutoff("+double_regex+")_ymax("+double_regex+")_R(" + double_regex + ")_(\\w+)_(\\w+).root");
+    std::regex r("mpi_tree_([[:digit:]]+)events_cutoff("+double_regex+")_ymax("+double_regex+")_R(" + double_regex + ")_([^\\W_]+)_(\\w+)_*.root");
     std::smatch m;
     if (std::regex_match(filename, m, r))
     {
@@ -265,7 +264,7 @@ int main( int argc, char* argv[] )
         int nb_events;
         decode_parameters(filename, &rho, &max_y, &R, &cutoff_type, &nb_events);
         std::cout << rho << " " << max_y << " " << R << " " << cutoff_type << " " << nb_events << std::endl;
-        fluctuations(max_y, 1.0, rho, r, filename.c_str(), filename_hist.c_str(), true, MINIMAL);        
+        //fluctuations(max_y, 1.0, rho, r, filename.c_str(), filename_hist.c_str(), true, MINIMAL);        
     }
     else if (val == "check")
     {
