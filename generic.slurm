@@ -8,6 +8,8 @@
 # scp laura.domine@hopper.calcul.labos.polytechnique.fr:~/displit/tree.root .
 # Launch interactive run
 # srun --ntasks=1 ./main 1
+# Clear directory
+# rm `ls mpi* | grep -v "_FINAL$"`
 
 #SBATCH --job-name=displitGenerate
 ##SBATCH --time=120  # max 120 minutes

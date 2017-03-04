@@ -19,6 +19,16 @@
 #include <fstream>
 #include <regex>
 
+std::vector<Double_t> init_r(Double_t rho)
+{
+    std::vector<Double_t> r;
+    for (int k = 2; k <= 100; ++k)
+    {
+        r.push_back(rho * k);
+    } 
+    return r;   
+}
+
 Double_t heaviside(Double_t * x, Double_t * p)
 {
     return (x[0] > 2 ? 0.0 : 1.0);
@@ -212,7 +222,8 @@ int main( int argc, char* argv[] )
         std::string cutoff_type;
         unsigned int len; // string length
 
-        std::vector<Double_t> r {0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.1, 0.11, 0.12, 0.13, 0.14, 0.15, 0.2, 0.3, 0.4, 0.5};
+        /*std::vector<Double_t> r {0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09, 0.1, 
+                                0.11, 0.12, 0.13, 0.14, 0.15, 0.2, 0.3, 0.4, 0.5};*/
 
         if (rank == 0)
         {
@@ -223,6 +234,8 @@ int main( int argc, char* argv[] )
                 int i = 0;
                 while (params >> repeat >> nb_events >> rho >> max_y >> R >> cutoff_type)
                 {
+                    std::vector<Double_t> r = init_r(rho);
+                    
                     for (int j = 0; j <repeat; ++j)
                     {
                         ++i;
@@ -268,6 +281,7 @@ int main( int argc, char* argv[] )
             const char * tree_file = s.c_str();
             std::string s2 = "lookup_table_" + cutoff_type + "_cutoff" + std::to_string(rho) + "_rank" + std::to_string(rank) + "_" + argv[3];
             const char * lut_file = s2.c_str();
+            std::vector<Double_t> r = init_r(rho);
 
             generate_histograms(nb_events, rho, max_y, R, true, cutoffs[cutoff_type], false, tree_file, lut_file, r);
         }
@@ -282,6 +296,7 @@ int main( int argc, char* argv[] )
                 int i = 0;
                 while (params >> repeat >> nb_events >> rho >> max_y >> R >> cutoff_type)
                 {
+                    std::vector<Double_t> r = init_r(rho);
                     for (int k = 0; k < r.size(); ++k)
                     {
                         std::string s2 = encode_parameters(nb_events, rho, max_y, R, cutoff_type, "rank" + std::to_string(0) + "_" + argv[3]);
