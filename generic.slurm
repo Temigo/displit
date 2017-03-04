@@ -1,11 +1,11 @@
 #!/bin/sh
 
-# Connect through SSH
+# Connect through SSH (-Y : graphic)
 # ssh -Y laura.domine@hopper.calcul.labos.polytechnique.fr
 # Send a file to hopper
 # scp utils.cpp laura.domine@hopper.calcul.labos.polytechnique.fr:~
-# Get a file from hopper
-# scp laura.domine@hopper.calcul.labos.polytechnique.fr:~/displit/tree.root .
+# Get a file from hopper (-r : recursive)
+# scp -rp laura.domine@hopper.calcul.labos.polytechnique.fr:~/displit/histograms/ .
 # Launch interactive run
 # srun --ntasks=1 ./main 1
 # Clear directory

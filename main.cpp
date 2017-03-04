@@ -86,14 +86,16 @@ int main( int argc, char* argv[] )
     // Heaviside
     //TF2 * cutoff_heaviside = new TF2("cutoff_heaviside", heaviside, 0, TMath::Infinity(), 0, TMath::Pi(), 2);
     TF1 * cutoff_heaviside = new TF1("cutoff_heaviside", "(x > [1]/[0]) ? 0.0 : 1.0", 0, TMath::Infinity());
-    // TODO cutoff arctan 
+    // Tanh (smooth cutoff)
+    TF1 * cutoff_tanh1 = new TF1("cutoff_tanh1", "0.5 * (1-tanh(([0]^2 * x^2 - [1]^2)/4))", 0, TMath::Infinity()); 
 
     std::map<std::string, TF1 *> cutoffs = {
         {"gaussian", cutoff_gaussian},
         {"lorentzian1", cutoff_lorentzian1},
         {"lorentzian2", cutoff_lorentzian2},
         {"lorentzian3", cutoff_lorentzian3},
-        {"rigid", cutoff_heaviside}
+        {"rigid", cutoff_heaviside},
+        {"tanh1", cutoff_tanh1}
     };
 
     bool MINIMAL = true;
@@ -297,6 +299,7 @@ int main( int argc, char* argv[] )
                 while (params >> repeat >> nb_events >> rho >> max_y >> R >> cutoff_type)
                 {
                     std::vector<Double_t> r = init_r(rho);
+                    int l = i;
                     for (int k = 0; k < r.size(); ++k)
                     {
                         std::string s2 = encode_parameters(nb_events, rho, max_y, R, cutoff_type, "rank" + std::to_string(0) + "_" + argv[3]);
@@ -321,6 +324,7 @@ int main( int argc, char* argv[] )
                             }
                             out.close();
                         }
+                        if (k < r.size() - 1) i = l;
                         hist->Write();
                         f->Close();
                     }
@@ -434,7 +438,15 @@ int main( int argc, char* argv[] )
     }
     else if (val == "draw-cutoffs")
     {
-        draw_cutoffs(myapp);
+        std::map<std::string, int> colors = {
+            {"gaussian",kBlue},
+            {"lorentzian1", kRed},
+            {"lorentzian2", kGreen},
+            {"lorentzian3", kMagenta},
+            {"rigid", kOrange},
+            {"tanh1", kAzure}
+        };
+        draw_cutoffs(myapp, cutoffs, colors);
     }
     else if (val == "draw-fluctuations")
     {
@@ -451,7 +463,7 @@ int main( int argc, char* argv[] )
     }
     else if (val == "compare")
     {
-        compare_histo(myapp);
+        compare_histo(myapp, argv[2]);
     }
     else if (val == "stats")
     {

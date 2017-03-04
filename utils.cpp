@@ -29,6 +29,11 @@
 TH1F * n_to_nbar(TH1F * old_hist)
 {
     old_hist->Sumw2();
+    if (old_hist->GetMean() == 0)
+    {
+        std::cerr << "Error : mean is zero" << std::endl;
+        return NULL;
+    }
     TH1F * new_hist = new TH1F("hfluct2", "hfluct2", old_hist->GetNbinsX(), 0, old_hist->GetXaxis()->GetXmax()/old_hist->GetMean());
     Double_t nbar = old_hist->GetMean();
     int nbins = old_hist->GetXaxis()->GetNbins();
