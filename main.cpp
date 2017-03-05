@@ -81,13 +81,15 @@ int main( int argc, char* argv[] )
     TF2 * cutoff_lorentzian1 = new TF2("cutoff_lorentzian1", "1 / (1 + ([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y))))", 0, TMath::Infinity(), 0, TMath::Pi());
     TF2 * cutoff_lorentzian2 = new TF2("cutoff_lorentzian2", "1 / (1 + ([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y)))^2 )", 0, TMath::Infinity(), 0, TMath::Pi());
     TF2 * cutoff_lorentzian3 = new TF2("cutoff_lorentzian3", "1 / (1 + ([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y)))^3 )", 0, TMath::Infinity(), 0, TMath::Pi());
+
     // Maxwellian cutoff
     //TF2 * cutoff = new TF2("cutoff", "1 / (1 + exp([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y))))", 0, TMath::Infinity(), 0, TMath::Pi());
     // Heaviside
     //TF2 * cutoff_heaviside = new TF2("cutoff_heaviside", heaviside, 0, TMath::Infinity(), 0, TMath::Pi(), 2);
     TF1 * cutoff_heaviside = new TF1("cutoff_heaviside", "(x > [1]/[0]) ? 0.0 : 1.0", 0, TMath::Infinity());
     // Tanh (smooth cutoff)
-    TF1 * cutoff_tanh1 = new TF1("cutoff_tanh1", "0.5 * (1-tanh(([0]^2 * x^2 - [1]^2)/4))", 0, TMath::Infinity()); 
+    TF1 * cutoff_tanh1 = new TF1("cutoff_tanh1", "0.5 * (1-tanh(([0]^2 * x^2 - [1]^2)))", 0, TMath::Infinity());
+    TF1 * cutoff_tanh2 = new TF1("cutoff_tanh2", "0.5 * (1-tanh(([0]^2 * x^2 - [1]^2)/4))", 0, TMath::Infinity()); 
 
     std::map<std::string, TF1 *> cutoffs = {
         {"gaussian", cutoff_gaussian},
@@ -95,7 +97,8 @@ int main( int argc, char* argv[] )
         {"lorentzian2", cutoff_lorentzian2},
         {"lorentzian3", cutoff_lorentzian3},
         {"rigid", cutoff_heaviside},
-        {"tanh1", cutoff_tanh1}
+        {"tanh1", cutoff_tanh1},
+        {"tanh2", cutoff_tanh2}
     };
 
     bool MINIMAL = true;
@@ -440,11 +443,12 @@ int main( int argc, char* argv[] )
     {
         std::map<std::string, int> colors = {
             {"gaussian",kBlue},
-            {"lorentzian1", kRed},
-            {"lorentzian2", kGreen},
-            {"lorentzian3", kMagenta},
+            {"lorentzian1", kRed-7},
+            {"lorentzian2", kRed},
+            {"lorentzian3", kRed+2},
             {"rigid", kOrange},
-            {"tanh1", kAzure}
+            {"tanh1", kCyan+1},
+            {"tanh2", kCyan+2}
         };
         draw_cutoffs(myapp, cutoffs, colors);
     }

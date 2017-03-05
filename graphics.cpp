@@ -8,6 +8,7 @@
 #include <TLine.h>
 #include <TH1D.h>
 #include <TFile.h>
+#include <TImage.h>
 
 #include <fstream>
 
@@ -16,44 +17,77 @@ void draw_cutoffs(TApplication * myapp, std::map<std::string, TF1 *> cutoffs,
 {
     Double_t r_max = 4;
     int i = 0;
+    Double_t xmin = 0.0;
+    Double_t xmax = 5.0;
+
+    TLegend legend(0.6, 0.45, 0.8, 0.8);
+    //legend.SetEntrySeparation(3.0);
+    legend.SetFillColor(0); // white bg
+    legend.SetBorderSize(0); // get rid of the box
+    legend.SetTextSize(0.045);
+    legend.SetHeader("Infrared Cutoffs");
+
     for (auto const &cutoff : cutoffs)
     {
         std::cout << cutoff.first << std::endl;
         cutoff.second->SetParameter(0, 1.0);
         cutoff.second->SetParameter(1, 2.0);
+        cutoff.second->SetRange(xmin, xmax);
         std::string s = cutoff.first + "12";
-    
+
         if (cutoff.second->GetNdim() > 1)
         {
             TF12 * cutoff12 = new TF12(s.c_str(), (TF2*) cutoff.second, 0.0, "x");
             cutoff12->SetLineColor(colors[cutoff.first]);
-            cutoff12->SetLineWidth(3);
+            cutoff12->SetLineWidth(1);
             //cutoff12->GetHistogram()->GetXaxis()->SetTitle("Size of dipole r");
             cutoff12->SetLineStyle(1);
+            cutoff12->SetTitle("");
             cutoff12->DrawCopy((i == 0) ? "" : "same");
-            cutoff12->SetLineWidth(1);
+
+            legend.AddEntry(cutoff12, cutoff.first.c_str(), "L"); 
+
+            /*cutoff12->SetLineWidth(1);
             cutoff12->SetXY(TMath::Pi()/3.0);
             cutoff12->SetLineStyle(2);
             cutoff12->DrawCopy("same");
             cutoff12->SetXY(TMath::Pi()*2.0/3.0);
             cutoff12->SetLineStyle(8);
-            cutoff12->DrawCopy("same");
+            cutoff12->DrawCopy("same");*/
+
             cutoff12->SetXY(TMath::Pi());
             cutoff12->SetLineStyle(9);
-            cutoff12->SetLineWidth(3);
-            cutoff12->DrawCopy("same");            
+            cutoff12->SetLineWidth(1);
+            cutoff12->DrawCopy("same"); 
+
+            //cutoff12->GetXaxis()->SetTitle("r");
+            //gPad->Modified();
+            //gPad->Update();
         }
         else
         {
+            cutoff.second->SetTitle("");
             cutoff.second->SetLineColor(colors[cutoff.first]);
-            cutoff.second->SetLineWidth(3);
+            cutoff.second->SetLineWidth(1);
             cutoff.second->SetLineStyle(1);
             cutoff.second->Draw((i == 0) ? "" : "same");
+            legend.AddEntry(cutoff.second, cutoff.first.c_str(), "L"); 
+            //cutoff.second->GetXaxis()->SetTitle("r");
         }
+
         ++i;         
     }
-    
+
+    legend.Draw();
+
     gPad->Update();
+
+    gPad->Print("cutoffs.eps");
+    /*TImage * img = TImage::Create();
+    img->FromPad(gPad->GetCanvas());
+    img->WriteImage("cutoffs.png");
+    delete img;*/
+
     myapp->Run();  
 }
 
