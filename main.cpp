@@ -76,29 +76,40 @@ int main( int argc, char* argv[] )
     }
 
     // Gaussian cutoff
-    TF2 * cutoff_gaussian = new TF2("cutoff_gaussian", "exp(-[0] / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y)))", 0, TMath::Infinity(), 0, TMath::Pi());
+    TF2 * cutoff_gaussian = new TF2("cutoff_gaussian", "exp(-[0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y)))", 0, TMath::Infinity(), 0, TMath::Pi());
     // Lorentzian cutoff
     TF2 * cutoff_lorentzian1 = new TF2("cutoff_lorentzian1", "1 / (1 + ([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y))))", 0, TMath::Infinity(), 0, TMath::Pi());
     TF2 * cutoff_lorentzian2 = new TF2("cutoff_lorentzian2", "1 / (1 + ([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y)))^2 )", 0, TMath::Infinity(), 0, TMath::Pi());
     TF2 * cutoff_lorentzian3 = new TF2("cutoff_lorentzian3", "1 / (1 + ([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y)))^3 )", 0, TMath::Infinity(), 0, TMath::Pi());
-
+    TF2 * cutoff_lorentzian1_2 = new TF2("cutoff_lorentzian1_2", "1 / (1 + ([0]^2 / (2 * [1]^2) * (1 + x^2 -2*x*cos(y)))) * 1 / (1 + ([0]^2 / (2 * [1]^2) * x^2))", 0, TMath::Infinity(), 0, TMath::Pi());
+    TF2 * cutoff_lorentzian2_2 = new TF2("cutoff_lorentzian2_2", "1 / (1 + ([0]^2 / (2 * [1]^2) * (1 + x^2 -2*x*cos(y)))^2 ) * 1 / (1 + ([0]^2 / (2 * [1]^2) * x^2)^2 )", 0, TMath::Infinity(), 0, TMath::Pi());
+    TF2 * cutoff_lorentzian3_2 = new TF2("cutoff_lorentzian3_2", "1 / (1 + ([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y)))^3 ) * 1 / (1 + ([0]^2 / (2 * [1]^2) * x^2)^3 )", 0, TMath::Infinity(), 0, TMath::Pi());
     // Maxwellian cutoff
     //TF2 * cutoff = new TF2("cutoff", "1 / (1 + exp([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y))))", 0, TMath::Infinity(), 0, TMath::Pi());
     // Heaviside
     //TF2 * cutoff_heaviside = new TF2("cutoff_heaviside", heaviside, 0, TMath::Infinity(), 0, TMath::Pi(), 2);
-    TF1 * cutoff_heaviside = new TF1("cutoff_heaviside", "(x > [1]/[0]) ? 0.0 : 1.0", 0, TMath::Infinity());
+    TF2 * cutoff_heaviside = new TF2("cutoff_heaviside", "((1 + 2*x^2 - 2*x*cos(y)) > [1]^2/[0]^2) ? 0.0 : 1.0", 0, TMath::Infinity(), 0, TMath::Pi());
+    TF2 * cutoff_heaviside2 = new TF2("cutoff_heaviside2", "(((1 + x^2 - 2*x*cos(y)) > [1]^2/[0]^2) || (x^2 > [1]^2/[0]^2)) ? 0.0 : 1.0", 0, TMath::Infinity(), 0, TMath::Pi());
     // Tanh (smooth cutoff)
-    TF1 * cutoff_tanh1 = new TF1("cutoff_tanh1", "0.5 * (1-tanh(([0]^2 * x^2 - [1]^2)))", 0, TMath::Infinity());
-    TF1 * cutoff_tanh2 = new TF1("cutoff_tanh2", "0.5 * (1-tanh(([0]^2 * x^2 - [1]^2)/4))", 0, TMath::Infinity()); 
+    TF2 * cutoff_tanh1 = new TF2("cutoff_tanh1", "0.5 * (1-tanh(([0]^2 * (1 + 2*x^2 - 2*x*cos(y)) - [1]^2)))", 0, TMath::Infinity(), 0, TMath::Pi());
+    TF2 * cutoff_tanh2 = new TF2("cutoff_tanh2", "0.5 * (1-tanh(([0]^2 * (1 + 2*x^2 - 2*x*cos(y)) - [1]^2)/4))", 0, TMath::Infinity(), 0, TMath::Pi()); 
+    TF2 * cutoff_tanh1_2 = new TF2("cutoff_tanh1_2", "0.5 * (1-tanh(([0]^2 * x^2 - [1]^2))) * 0.5 * (1-tanh(([0]^2 * (1+x^2-2*x*cos(y)) - [1]^2)))", 0, TMath::Infinity(), 0, TMath::Pi());
+    TF2 * cutoff_tanh2_2 = new TF2("cutoff_tanh2_2", "0.5 * (1-tanh(([0]^2 * x^2 - [1]^2)/4)) * 0.5 * (1-tanh(([0]^2 * (1+x^2-2*x*cos(y)) - [1]^2)/4))", 0, TMath::Infinity(), 0, TMath::Pi()); 
 
     std::map<std::string, TF1 *> cutoffs = {
         {"gaussian", cutoff_gaussian},
         {"lorentzian1", cutoff_lorentzian1},
         {"lorentzian2", cutoff_lorentzian2},
         {"lorentzian3", cutoff_lorentzian3},
+        {"lorentzian1_2", cutoff_lorentzian1_2},
+        {"lorentzian2_2", cutoff_lorentzian2_2},
+        {"lorentzian3_2", cutoff_lorentzian3_2},
         {"rigid", cutoff_heaviside},
+        {"rigid2", cutoff_heaviside2},
         {"tanh1", cutoff_tanh1},
-        {"tanh2", cutoff_tanh2}
+        {"tanh2", cutoff_tanh2},
+        {"tanh1_2", cutoff_tanh1_2},
+        {"tanh2_2", cutoff_tanh2_2}
     };
 
     bool MINIMAL = true;
@@ -446,6 +457,7 @@ int main( int argc, char* argv[] )
             {"lorentzian1", kRed-7},
             {"lorentzian2", kRed},
             {"lorentzian3", kRed+2},
+            {"lorentzian1_2", kRed+4},
             {"rigid", kOrange},
             {"tanh1", kCyan+1},
             {"tanh2", kCyan+2}
@@ -469,6 +481,10 @@ int main( int argc, char* argv[] )
     {
         compare_histo(myapp, argv[2]);
     }
+    else if (val == "compare-c")
+    {
+        compare_c(myapp, argv[2]);
+    }    
     else if (val == "stats")
     {
         Double_t x01 = std::stod(argv[2]);
@@ -476,38 +492,10 @@ int main( int argc, char* argv[] )
         std::string filename = argv[4];
         stat_events(myapp, max_y, x01, filename.c_str(), MINIMAL);
     }
-    else if (val == "merge")
-    {
-        std::ifstream files(argv[2]);
-        std::string filename;
-        TH1F * hresult = new TH1F("hresult", "hresult", 100, 0, 6);
-        TList * list = new TList;
-        if (files.is_open())
-        {
-            while (files >> filename)
-            {
-                TFile f(filename.c_str());
-                TH1F* hfluct = n_to_nbar((TH1F*) f.Get("hfluct"));
-                hfluct->SetDirectory(0);
-                list->Add(hfluct);
-                //hresult->Add(hresult, hfluct);
-                f.Close();
-                std::cout << filename << std::endl;
-            }
-            files.close();
-        }
-        hresult->Merge(list);
-        hresult->Draw("E1");
-        myapp->Run();
-
-    }
     else
     {
         std::cout << "Unknown command." << std::endl;
     }
-    // General fit
-    //general_plot(myapp);
-    //stat_events(myapp, max_y, 1.0);
 
     // Compute biggest children
     /*TFile f("tree.root");
@@ -516,8 +504,6 @@ int main( int argc, char* argv[] )
     //tree->MakeClass("EventTree");
     compute_biggest_child(tree, myapp);*/
 
-    //myapp->Run();
-    //delete myapp;
     delete cutoff_gaussian;
     delete cutoff_lorentzian1;
     delete cutoff_lorentzian2;

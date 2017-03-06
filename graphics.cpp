@@ -9,8 +9,11 @@
 #include <TH1D.h>
 #include <TFile.h>
 #include <TImage.h>
+#include <THStack.h>
+#include <TGraphErrors.h>
 
 #include <fstream>
+#include <regex>
 
 void draw_cutoffs(TApplication * myapp, std::map<std::string, TF1 *> cutoffs, 
                     std::map<std::string, int> colors)
@@ -253,48 +256,108 @@ void compare_histo(TApplication * myapp, std::string histofiles)
     int lineColor, lineWidth;
     std::string title, filename;
 
-    TLegend legend(0.2, 0.2, 0.6, 0.4);
+    TLegend legend(0.2, 0.2, 0.4, 0.4);
     legend.SetFillColor(0); // white bg
     legend.SetBorderSize(0); // get rid of the box
     legend.SetTextSize(0.045);
 
+    THStack * stack = new THStack("hs", "");
+
     if (files.is_open())
     {
         int i = 0;
+        //files >> title;
+        //legend.SetHeader(title.c_str());
         while (files >> lineColor >> lineWidth >> title >> filename)
         {
-            std::cout << i << std::endl;
             TFile f(filename.c_str(), "READ");
             TH1F * h = n_to_nbar((TH1F*) f.Get("hfluct"));
             h->SetLineColor(lineColor);
             h->SetLineWidth(lineWidth);
             h->SetDirectory(0);
-            h->Draw((i == 0) ? "E1" : "E1 same");
+            //h->Draw((i == 0) ? "E1" : "E1 same");
             legend.AddEntry(h, title.c_str(), "L");
             std::cout << filename << std::endl;
+
+            std::string cutoff_name = "pn_cutoff" + std::to_string(i);
+            TF1 pn_cutoff(cutoff_name.c_str(), "[0] * [1]^2 / [2]^2 * exp(-[1]^2/(2. * [2]^2)) * exp(-x/[3])", 1, 4);
+            pn_cutoff.FixParameter(1, 1.0);
+            pn_cutoff.FixParameter(2, 2.0); // R
+            pn_cutoff.SetParLimits(3, 0.01, 20);
+            h->Fit(cutoff_name.c_str(), "*IR0+", "goff");
+
+            stack->Add(h);
             ++i;
         }
         files.close();
     } 
-
+    stack->Draw("nostack");
+    stack->GetXaxis()->SetTitle("Multiplicity n/#bar{n}");
+    stack->GetYaxis()->SetTitle("Number of events with multiplicity n");
     //legend.AddEntry(&fr1, "Fit (formula without cutoff)", "L");
     legend.Draw();
 
-    // Parameter 0 : proportionality | 3 : c
-    /*TF1 pn_cutoff("pn_cutoff", "[0] * [1]^2 / [2]^2 * exp(-[1]^2/(2. * [2]^2)) * exp(-x/[3])", 1, 4);
-    pn_cutoff.FixParameter(1, 1.0);
-    pn_cutoff.FixParameter(2, 2.0); // R
-    pn_cutoff.SetParLimits(3, 0.01, 20);
-    h6->Fit("pn_cutoff", "*IR+");
-
-    // Parameter 0 : proportionality | 3 : c
-    TF1 pn_cutoff7("pn_cutoff7", "[0] * [1]^2 / [2]^2 * exp(-[1]^2/(2. * [2]^2)) * exp(-x/[3])", 1, 4);
-    pn_cutoff7.FixParameter(1, 1.0);
-    pn_cutoff7.FixParameter(2, 2.0); // R
-    pn_cutoff7.SetParLimits(3, 0.01, 20);
-    h7->Fit("pn_cutoff7", "*IR+");    
-    //canvas.SetTitle(TString::Format("Chi2 : %.12g", pn_cutoff.GetChisquare()));*/
+    gPad->Print("compare_histo.eps");
+    // Parameter 0 : proportionality | 3 : c 
+    //canvas.SetTitle(TString::Format("Chi2 : %.12g", pn_cutoff.GetChisquare()));
 
     //canvas.Update();
+    myapp->Run();
+}
+
+void compare_c(TApplication * myapp, std::string histofiles)
+{
+    TCanvas canvas("canvas", "Sizes", 1080, 780);
+    gPad->SetLogy();
+    gStyle->SetOptStat(0); // get rid of the statistics box
+
+    std::ifstream files(histofiles);   
+    std::string filename;
+
+    std::string double_regex = "[-+]?[0-9]*\.?[0-9]+";
+    std::regex r("_r(" + double_regex + ")_FINAL");
+    std::smatch m;
+
+    std::vector<Double_t> rvalues, c, ex, ey;
+
+    if (files.is_open())
+    {
+        int i = 0;
+        //files >> title;
+        //legend.SetHeader(title.c_str());
+        while (files >> filename)
+        {
+            if (std::regex_search(filename, m, r))
+            {           
+                Double_t r = std::stod(m[1]);
+                TFile f(filename.c_str(), "READ");
+                TH1F * h = n_to_nbar((TH1F*) f.Get("hfluct"));
+                h->SetDirectory(0);
+                //h->Draw((i == 0) ? "E1" : "E1 same");
+                //legend.AddEntry(h, title.c_str(), "L");
+                std::cout << filename << std::endl;
+
+                std::string cutoff_name = "pn_cutoff" + std::to_string(i);
+                TF1 pn_cutoff(cutoff_name.c_str(), "[0] * [1]^2 / [2]^2 * exp(-[1]^2/(2. * [2]^2)) * exp(-x/[3])", 1, 4);
+                pn_cutoff.FixParameter(1, 1.0);
+                pn_cutoff.FixParameter(2, 2.0); // R
+                pn_cutoff.SetParLimits(3, 0.01, 20);
+                h->Fit(cutoff_name.c_str(), "*IR0Q+", "goff");
+                std::cerr << r << " " << pn_cutoff.GetParameter(3) << " " << pn_cutoff.GetParError(3) << std::endl;
+                rvalues.push_back(r);
+                c.push_back(pn_cutoff.GetParameter(3));
+                ex.push_back(0.0);
+                ey.push_back(pn_cutoff.GetParError(3));
+                ++i;
+            }
+            else
+            {
+                std::cerr << "Failed to decode r value." << std::endl;
+            }
+        }
+        files.close();
+    }    
+    TGraphErrors * g = new TGraphErrors(c.size(), &(rvalues[0]), &(c[0]), &(ex[0]), &(ey[0]));
+    g->Draw("AP");  
     myapp->Run();
 }
