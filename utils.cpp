@@ -25,6 +25,31 @@
 #include <signal.h>
 #include <fstream>
 #include <memory>
+#include <regex>
+
+std::string encode_parameters(int nb_events, Double_t rho, Double_t max_y, Double_t R, std::string cutoff_type, std::string optional)
+{
+    return "mpi_tree_" + std::to_string(nb_events) + "events_cutoff" + std::to_string(rho) + "_ymax" + std::to_string(max_y) + "_R" + std::to_string(R) + "_" + cutoff_type + "_" + optional + ".root";
+}
+
+void decode_parameters(std::string filename, Double_t * rho, Double_t * max_y, Double_t * R, std::string * cutoff_type, int * nb_events)
+{
+    std::string double_regex = "[-+]?[0-9]*\.?[0-9]+";
+    std::regex r("mpi_tree_([[:digit:]]+)events_cutoff("+double_regex+")_ymax("+double_regex+")_R(" + double_regex + ")_(([^\\W_]|[0-9])+)");
+    std::smatch m;
+    if (std::regex_search(filename, m, r))
+    {
+        *nb_events = std::stoi(m[1]);
+        *rho = std::stod(m[2]);
+        *max_y = std::stod(m[3]);
+        *R = std::stod(m[4]);
+        *cutoff_type = m[5];
+    }
+    else
+    {
+        std::cout << "no match" << std::endl;
+    }
+}
 
 TH1F * n_to_nbar(TH1F * old_hist)
 {
@@ -36,14 +61,15 @@ TH1F * n_to_nbar(TH1F * old_hist)
     }
     TH1F * new_hist = new TH1F("hfluct2", "hfluct2", old_hist->GetNbinsX(), 0, old_hist->GetXaxis()->GetXmax()/old_hist->GetMean());
     Double_t nbar = old_hist->GetMean();
+    Double_t nentries = old_hist->GetEntries();
     int nbins = old_hist->GetXaxis()->GetNbins();
     for (int i = 1; i<=nbins; ++i)
     {
         Double_t y = old_hist->GetBinContent(i);
         Double_t x = old_hist->GetXaxis()->GetBinCenter(i);
-        Double_t error = old_hist->GetBinError(i);
+        Double_t error = old_hist->GetBinError(i)/nentries;
         Double_t xnew = x / nbar;
-        new_hist->Fill(xnew, y);
+        new_hist->Fill(xnew, y/nentries);
         new_hist->SetBinError(i, error);
     }
     return new_hist;
@@ -250,12 +276,12 @@ void draw_fluctuations(TApplication * myapp, const char * filename,
     }
     c.Update();
 
-    TImage * img = TImage::Create();
+    /*TImage * img = TImage::Create();
     img->FromPad(&c);
     std::string s(filename);
     s.append(".png");
     img->WriteImage(s.c_str());
-    delete img;
+    delete img;*/
 
     myapp->Run();    
 }

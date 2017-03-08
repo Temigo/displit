@@ -5,6 +5,7 @@
 #include <TH1F.h>
 #include <TF2.h>
 
+void decode_parameters(std::string filename, Double_t * rho, Double_t * max_y, Double_t * R, std::string * cutoff_type, int * nb_events);
 TH1F * n_to_nbar(TH1F * old_hist);
 void BinLogX(TH1 *h);
 Axis_t * BinLogX2(TH1 *h, int bins);

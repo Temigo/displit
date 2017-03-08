@@ -17,14 +17,14 @@
 #include <RooStats/Heaviside.h>
 #include <mpi.h>
 #include <fstream>
-#include <regex>
 
 std::vector<Double_t> init_r(Double_t rho)
 {
     std::vector<Double_t> r;
     for (int k = 2; k <= 100; ++k)
     {
-        r.push_back(rho * k);
+        //r.push_back(rho * k);
+        r.push_back(0.01 * k);
     } 
     return r;   
 }
@@ -32,30 +32,6 @@ std::vector<Double_t> init_r(Double_t rho)
 Double_t heaviside(Double_t * x, Double_t * p)
 {
     return (x[0] > 2 ? 0.0 : 1.0);
-}
-
-std::string encode_parameters(int nb_events, Double_t rho, Double_t max_y, Double_t R, std::string cutoff_type, std::string optional)
-{
-    return "mpi_tree_" + std::to_string(nb_events) + "events_cutoff" + std::to_string(rho) + "_ymax" + std::to_string(max_y) + "_R" + std::to_string(R) + "_" + cutoff_type + "_" + optional + ".root";
-}
-
-void decode_parameters(std::string filename, Double_t * rho, Double_t * max_y, Double_t * R, std::string * cutoff_type, int * nb_events)
-{
-    std::string double_regex = "[-+]?[0-9]*\.?[0-9]+";
-    std::regex r("mpi_tree_([[:digit:]]+)events_cutoff("+double_regex+")_ymax("+double_regex+")_R(" + double_regex + ")_(([^\\W_]|[0-9])+)");
-    std::smatch m;
-    if (std::regex_search(filename, m, r))
-    {
-        *nb_events = std::stoi(m[1]);
-        *rho = std::stod(m[2]);
-        *max_y = std::stod(m[3]);
-        *R = std::stod(m[4]);
-        *cutoff_type = m[5];
-    }
-    else
-    {
-        std::cout << "no match" << std::endl;
-    }
 }
 
 int main( int argc, char* argv[] )
@@ -479,7 +455,7 @@ int main( int argc, char* argv[] )
     }
     else if (val == "compare")
     {
-        compare_histo(myapp, argv[2]);
+        compare_histo(myapp, argv[2], cutoffs);
     }
     else if (val == "compare-c")
     {

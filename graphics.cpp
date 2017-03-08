@@ -246,7 +246,8 @@ void fit_fluctuations(Double_t rho, Double_t max_y, TApplication * myapp)
     myapp->Run();
 }
 
-void compare_histo(TApplication * myapp, std::string histofiles)
+void compare_histo(TApplication * myapp, std::string histofiles,
+                    std::map<std::string, TF1 *> cutoffs)
 {
     TCanvas canvas("canvas", "Sizes", 1080, 780);
     gPad->SetLogy();
@@ -254,7 +255,10 @@ void compare_histo(TApplication * myapp, std::string histofiles)
 
     std::ifstream files(histofiles);
     int lineColor, lineWidth;
-    std::string title, filename;
+    std::string title, filename, cutoff_type;
+
+    Double_t rho, max_y, R;
+    int nb_events;
 
     TLegend legend(0.2, 0.2, 0.4, 0.4);
     legend.SetFillColor(0); // white bg
@@ -270,6 +274,13 @@ void compare_histo(TApplication * myapp, std::string histofiles)
         //legend.SetHeader(title.c_str());
         while (files >> lineColor >> lineWidth >> title >> filename)
         {
+            decode_parameters(filename, &rho, &max_y, &R, &cutoff_type, &nb_events);
+            std::cerr << cutoff_type << std::endl;
+            cutoffs[cutoff_type]->SetName("cutoff");
+            cutoffs[cutoff_type]->SetParameter(0, 1.0);
+            cutoffs[cutoff_type]->SetParameter(1, R);
+            Double_t cut = cutoffs[cutoff_type]->Eval(1.0, 0.0);
+            
             TFile f(filename.c_str(), "READ");
             TH1F * h = n_to_nbar((TH1F*) f.Get("hfluct"));
             h->SetLineColor(lineColor);
@@ -280,11 +291,23 @@ void compare_histo(TApplication * myapp, std::string histofiles)
             std::cout << filename << std::endl;
 
             std::string cutoff_name = "pn_cutoff" + std::to_string(i);
-            TF1 pn_cutoff(cutoff_name.c_str(), "[0] * [1]^2 / [2]^2 * exp(-[1]^2/(2. * [2]^2)) * exp(-x/[3])", 1, 4);
+            // FIXME pn_cutoff is wrong here
+            TF1 pn_cutoff(cutoff_name.c_str(), "[0] * [1]^2 / [2]^2 * [4] / ([3]*[5]) * exp(-x/[3])", 1, 4);
             pn_cutoff.FixParameter(1, 1.0);
-            pn_cutoff.FixParameter(2, 2.0); // R
+            pn_cutoff.FixParameter(2, R); // R
             pn_cutoff.SetParLimits(3, 0.01, 20);
-            h->Fit(cutoff_name.c_str(), "*IR0+", "goff");
+            pn_cutoff.FixParameter(4, cut);
+            pn_cutoff.FixParameter(5, h->GetMean()*h->GetEntries());
+            std::cerr << h->GetMean()*h->GetEntries() << std::endl; // FIXME not real mean
+
+            h->Fit(cutoff_name.c_str(), "*IR0+");
+
+            TF1 pn_custom(std::string("custom" + std::to_string(i)).c_str(), "[0] * x^[1] * exp(-x^[2]/[3])", 0.0, 5);
+            //pn_custom.SetParLimits(2, 0.01, 20);
+            pn_custom.FixParameter(2, R);
+            pn_custom.FixParameter(1, max_y);
+            pn_custom.SetParLimits(3, 0.01, 20);
+            h->Fit(std::string("custom" + std::to_string(i)).c_str(), "*IR+");
 
             stack->Add(h);
             ++i;

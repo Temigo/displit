@@ -116,7 +116,7 @@ Double_t Event::r_generate(Double_t x01, bool display_cutoff)
         // Cut-off on small sizes : we don't need dipoles of size < rho
         TF1 g2("g2", "5 * TMath::Pi() / 3 * 1/(x * (1+x^2)) * exp(- [0] / (2*[1]^2) * (2*x^2))", rho, 100);
         g2.SetParameter(0, 1.0);
-        g2.SetParameter(1, 2.0);
+        g2.SetParameter(1, R);
 
         TF1 g3("g3", "5 * TMath::Pi() / 3 * 1/(x * (1+x^2))", 0, 100);
 
@@ -134,7 +134,7 @@ Double_t Event::r_generate(Double_t x01, bool display_cutoff)
 
             TF1 g("g", "5 * TMath::Pi() / 3 * 1/(x * (1+x^2)) * exp(- [0] / (2*[1]^2) * (1 + 2*x^2-2*x))", 0, 100);
             g.SetParameter(0, 1.0);
-            g.SetParameter(1, 2.0);
+            g.SetParameter(1, R);
             g.SetLineColor(46);
             g.DrawF1(0.0, 10, "same");
 
@@ -152,7 +152,7 @@ Double_t Event::r_generate(Double_t x01, bool display_cutoff)
 
         // Get random following f_cutoff distribution using rejection sampling
         Double_t rho2 = rho / x01;
-        Double_t R = gRandom->Uniform(0., 1.);
+        Double_t R = gRandom->Uniform(0., 1.); // FIXME conflict with R ?
         Double_t result = 1. / TMath::Sqrt(TMath::Exp((1. - R) * TMath::Log(1. + 1. /(rho2 * rho2)))- 1. );
         Double_t temp = gRandom->Uniform(0., 1.);
         while (temp > f_cutoff->Eval(result) / g(result))
