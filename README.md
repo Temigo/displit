@@ -37,29 +37,73 @@ To run displit, either use `./main [options]` or if using MPI
 use `mpiexec -np $NB_TASKS ./main [options]`.
 
 ### Options
-* generate [nb_events] [rho] [max_y] [cutoff_type]
-* generate-mpi [parameters file]
+*Warning* : filenames are used to get/set parameters. Do not change it.
+
+
+#### Generation of events and histograms
+###### generate [nb_events] [delta] [max_y] [cutoff_type]
+Generate `nb_events` events with UV cutoff `delta`, maximal rapidity `max_y` and
+an IR cutoff type `cutoff_type`. Each event is stored as a TTree in a ROOT file.
+You can stop it with Ctrl-C and events generated until this point will be saved.
+
+###### generate-mpi [parameters file]
 Example of parameters file :
 ```
 1000000 0.01 3.00 gaussian
 1000000 0.01 3.00 lorentzian1
 ```
-The pattern for each line is `nb_events rho max_y cutoff_type`.
+The pattern for each line is `nb_events delta max_y cutoff_type` where `delta` 
+is the UV cutoff and `cutoff_type` is the IR cutoff.
 
-* fluctuations [filename]
-* fluctuations-mpi [file]
-Example of files list :
+###### fluctuations [filename]
+###### fluctuations-mpi [file]
+Example of files list (1 filename per line) :
 ```
 mpi_tree_100000events_cutoff0.010000_ymax2.000000_gaussian.root
 mpi_tree_100000events_cutoff0.010000_ymax2.000000_lorentzian1.root
 ```
-Warning : the filename is used to get the parameters. Do not change it.
 
-* draw-fluctuations [histogram file] [max_y]
-* check [file]
-* fit-bare-r [rho] [max_y]
-* ancestors [nb_events] [rho] [max_y]
-* draw-cutoffs
+###### generate-fluctuations-mpi [parameters file]
+Example of parameters file :
+```
+100 10000 0.01 3.00 2.0 gaussian
+100 10000 0.01 3.00 2.0 lorentzian1
+```
+The pattern for each line is `nb_tasks nb_events_per_task delta max_y R cutoff_type`.
+
+#### Plots and graphics
+###### draw-fluctuations [histogram file] [max_y]
+Draw the distribution of probability of having n dipoles (fluctuations) after an evolution until
+rapidity `max_y`. 
+
+###### compare [histofile]
+Draw the fluctuations for different histograms on the same canvas.
+
+###### compare-c [histofile] [mode]
+Draw the value of c for different values of parameter `mode` which can be `r`, 
+`delta` or `ymax`. The histograms filenames are in `histofile`. All parameters
+other than `mode` should be fixed.
+
+###### compare-R [histofile]
+Test the fluctuations dependance in x_{01}/R.
+
+#### Miscellaneous
+###### list-cutoffs
+List available IR cutoffs.
+
+###### draw-cutoffs
+Draw some IR cutoffs (not all of them).
+
+###### check [tree_file]
+Check the real number of events recorded in [tree_file] against the theoretical number (encoded in
+the filename).
+
+###### fit-bare-r [delta] [max_y]
+Draw the distribution of dipoles size for given parameters : UV cutoff `delta` and
+maximal rapidity `max_y`, comparing with and without an IR cutoff (rigid).
+
+###### ancestors [nb_events] [rho] [max_y]
+Not fully tested yet.
 
 ### Running displit with SLURM + MPI
 The file `generic.slurm` is provided as an example to launch displit on a cluster

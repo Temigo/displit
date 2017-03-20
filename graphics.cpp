@@ -58,12 +58,12 @@ void draw_cutoffs(TApplication * myapp, std::map<std::string, TF1 *> cutoffs,
             cutoff12->SetLineStyle(8);
             cutoff12->DrawCopy("same");*/
 
-            cutoff12->SetXY(TMath::Pi());
+            /*cutoff12->SetXY(TMath::Pi());
             cutoff12->SetLineStyle(9);
             cutoff12->SetLineWidth(1);
-            cutoff12->DrawCopy("same"); 
+            cutoff12->DrawCopy("same"); */
 
-            //cutoff12->GetXaxis()->SetTitle("r");
+            cutoff12->GetXaxis()->SetTitle("Size r of dipoles");
             //gPad->Modified();
             //gPad->Update();
         }
@@ -74,15 +74,15 @@ void draw_cutoffs(TApplication * myapp, std::map<std::string, TF1 *> cutoffs,
             cutoff.second->SetLineWidth(1);
             cutoff.second->SetLineStyle(1);
             cutoff.second->Draw((i == 0) ? "" : "same");
-            legend.AddEntry(cutoff.second, cutoff.first.c_str(), "L"); 
-            //cutoff.second->GetXaxis()->SetTitle("r");
+            legend.AddEntry(cutoff.second, cutoff.first.c_str(), "L");
+            cutoff.second->GetXaxis()->SetTitle("Size r of dipoles");
         }
 
         ++i;         
     }
 
     legend.Draw();
-
+    
     gPad->Update();
 
     gPad->Print("cutoffs.eps");
@@ -108,7 +108,8 @@ void fit_bare_r(Double_t rho, Double_t max_y, TApplication * myapp)
     //TF2 * cutoff = new TF2("cutoff", "1 / (1 + exp([0]^2 / (2 * [1]^2) * (1 + 2*x^2 -2*x*cos(y))))", 0, TMath::Infinity(), 0, TMath::Pi());
     // Heaviside
     //TF2 * cutoff = new TF2("cutoff", "(x > (2*[0]) ? 0.0 : 1.0) * y/y", 0, TMath::Infinity(), 0, TMath::Pi());
-    TF1 * cutoff = new TF1("cutoff", "(x > 2) ? 0.0 : 1.0", 0, TMath::Infinity());
+    //TF2 * cutoff = new TF2("cutoff_heaviside", "((1 + 2*x^2 - 2*x*cos(y)) > [1]^2/[0]^2) ? 0.0 : 1.0", 0, TMath::Infinity(), 0, TMath::Pi());
+    TF2 * cutoff = new TF2("cutoff_heaviside2", "(((1 + x^2 - 2*x*cos(y)) > [1]^2/[0]^2) || (x^2 > [1]^2/[0]^2)) ? 0.0 : 1.0", 0, TMath::Infinity(), 0, TMath::Pi());
     Event e2(rho, max_y, 2.0, "lookup_table", cutoff, true, true);
     Event e3(rho, max_y, 2.0, "lookup_table", cutoff, true, false);
 
@@ -125,14 +126,14 @@ void fit_bare_r(Double_t rho, Double_t max_y, TApplication * myapp)
     for (int i = 0; i <N; ++i)
     {
         hist1.Fill(e1.r_generate());
-        hist2.Fill(e2.r_generate());
+        //hist2.Fill(e2.r_generate());
         hist3.Fill(e3.r_generate2());
     }
     hist1.SetLineWidth(2);
     hist1.SetMarkerStyle(8);
     hist1.SetMarkerSize(0.7);
     hist1.Draw("E1");
-    TF1 fr1("fr1", "[0] / (x*(1. - x*x))", 0.02, 0.5);
+    TF1 fr1("fr1", "[0] / (x*(1. - x*x))", 0.03, 0.5);
     TF1 fr2("fr2", "2. * [0] / (x*TMath::Abs(1. - x*x)) * TMath::ATan(TMath::Abs(1. - x)/(1. + x) * TMath::Sqrt((x+1./2.)/(x-1./2.)))", 0.5, 2);
     fr1.SetLineColor(kGreen-6);
     fr2.SetLineColor(kGreen-6);
@@ -140,18 +141,18 @@ void fit_bare_r(Double_t rho, Double_t max_y, TApplication * myapp)
     hist1.Fit("fr2", "R+");
 
     hist2.SetLineColor(kRed);
-    hist2.Draw("E1 same");
+    //hist2.Draw("E1 same");
     hist3.SetLineColor(kViolet);
     hist3.Draw("E1 same");
 
-    TLegend legend(0.4, 0.6, 0.8, 0.8);
+    TLegend legend(0.3, 0.6, 0.8, 0.8);
     legend.SetFillColor(0); // white bg
     legend.SetBorderSize(0); // get rid of the box
     legend.SetTextSize(0.045);
-    legend.AddEntry(&hist1,"Without cutoff", "L");
-    legend.AddEntry(&hist2,"With cutoff - method 1", "L");
-    legend.AddEntry(&hist3,"With cutoff - method 2", "L");
-    legend.AddEntry(&fr1, "Fit (formula without cutoff)", "L");
+    legend.AddEntry(&hist1,"Without infrared cutoff", "L");
+    //legend.AddEntry(&hist2,"With cutoff - method 1", "L");
+    legend.AddEntry(&hist3,"With infrared cutoff", "L");
+    legend.AddEntry(&fr1, "Fit (formula without infrared cutoff)", "L");
     legend.Draw();
 
     TLine line(rho, 0, rho, hist1.GetMaximum());
@@ -160,8 +161,17 @@ void fit_bare_r(Double_t rho, Double_t max_y, TApplication * myapp)
     line.Draw();
 
     //TString::Format("#splitline{Distribution de la taille r du dipole (#rho = %.12g)}{%d bins - chi2 = %.12g et %.12g}", rho, hist.GetSize()-2, chi2_1, chi2_2)
-    hist1.SetTitle(TString::Format("%d generations of r with x01 = %.12g and rho = %.12g;Size r of dipoles;Number of dipoles", N, 1.0, rho));
+    //hist1.SetTitle(TString::Format("%d generations of r with x01 = %.12g and rho = %.12g;Size r of dipoles;Number of dipoles", N, 1.0, rho));
+    hist1.GetXaxis()->SetTitle("Size r of dipoles");   
+    hist1.GetXaxis()->CenterTitle();
+    hist1.GetXaxis()->SetTitleOffset(1.4);
+    hist1.GetYaxis()->CenterTitle();
+    hist1.GetYaxis()->SetTitleOffset(1.5);
+    hist1.GetYaxis()->SetTitle("Number of dipoles");   
+    hist1.SetTitle(""); 
     canvas.Update(); 
+
+    gPad->Print("fit_bare_r.eps");
     myapp->Run();
 }
 
@@ -246,6 +256,7 @@ void fit_fluctuations(Double_t rho, Double_t max_y, TApplication * myapp)
     myapp->Run();
 }
 
+// assuming x01 and R constants
 void compare_histo(TApplication * myapp, std::string histofiles,
                     std::map<std::string, TF1 *> cutoffs)
 {
@@ -260,7 +271,7 @@ void compare_histo(TApplication * myapp, std::string histofiles,
     Double_t rho, max_y, R;
     int nb_events;
 
-    TLegend legend(0.2, 0.2, 0.4, 0.4);
+    TLegend legend(0.2, 0.2, 0.4, 0.5);
     legend.SetFillColor(0); // white bg
     legend.SetBorderSize(0); // get rid of the box
     legend.SetTextSize(0.045);
@@ -292,22 +303,19 @@ void compare_histo(TApplication * myapp, std::string histofiles,
 
             std::string cutoff_name = "pn_cutoff" + std::to_string(i);
             // FIXME pn_cutoff is wrong here
-            TF1 pn_cutoff(cutoff_name.c_str(), "[0] * [1]^2 / [2]^2 * [4] / ([3]*[5]) * exp(-x/[3])", 1, 4);
-            pn_cutoff.FixParameter(1, 1.0);
-            pn_cutoff.FixParameter(2, R); // R
-            pn_cutoff.SetParLimits(3, 0.01, 20);
-            pn_cutoff.FixParameter(4, cut);
-            pn_cutoff.FixParameter(5, h->GetMean()*h->GetEntries());
-            std::cerr << h->GetMean()*h->GetEntries() << std::endl; // FIXME not real mean
+            TF1 pn_cutoff(cutoff_name.c_str(), "[0] / [1] * exp(-x/[1])", 1, 5);
+            pn_cutoff.SetParameter(1, 0.5); // initial value of fit parameter
+            pn_cutoff.SetParLimits(1, 0.01, 20);
+            //pn_cutoff.FixParameter(4, cut);
 
-            h->Fit(cutoff_name.c_str(), "*IR0+");
+            h->Fit(cutoff_name.c_str(), "*IR+");
 
             TF1 pn_custom(std::string("custom" + std::to_string(i)).c_str(), "[0] * x^[1] * exp(-x^[2]/[3])", 0.0, 5);
             //pn_custom.SetParLimits(2, 0.01, 20);
             pn_custom.FixParameter(2, R);
             pn_custom.FixParameter(1, max_y);
             pn_custom.SetParLimits(3, 0.01, 20);
-            h->Fit(std::string("custom" + std::to_string(i)).c_str(), "*IR+");
+            //h->Fit(std::string("custom" + std::to_string(i)).c_str(), "*IR+");
 
             stack->Add(h);
             ++i;
@@ -316,7 +324,11 @@ void compare_histo(TApplication * myapp, std::string histofiles,
     } 
     stack->Draw("nostack");
     stack->GetXaxis()->SetTitle("Multiplicity n/#bar{n}");
-    stack->GetYaxis()->SetTitle("Number of events with multiplicity n");
+    stack->GetYaxis()->SetTitle("Probability of events with multiplicity n");
+    stack->GetXaxis()->CenterTitle();
+    stack->GetXaxis()->SetTitleOffset(1.4);
+    stack->GetYaxis()->CenterTitle();
+    stack->GetYaxis()->SetTitleOffset(1.5);    
     //legend.AddEntry(&fr1, "Fit (formula without cutoff)", "L");
     legend.Draw();
 
@@ -328,10 +340,10 @@ void compare_histo(TApplication * myapp, std::string histofiles,
     myapp->Run();
 }
 
-void compare_c(TApplication * myapp, std::string histofiles)
+void compare_c(TApplication * myapp, std::string histofiles, std::string mode)
 {
     TCanvas canvas("canvas", "Sizes", 1080, 780);
-    gPad->SetLogy();
+    //gPad->SetLogy();
     gStyle->SetOptStat(0); // get rid of the statistics box
 
     std::ifstream files(histofiles);   
@@ -341,7 +353,11 @@ void compare_c(TApplication * myapp, std::string histofiles)
     std::regex r("_r(" + double_regex + ")_FINAL");
     std::smatch m;
 
-    std::vector<Double_t> rvalues, c, ex, ey;
+    Double_t max_y, rho, R;
+    std::string cutoff_type;
+    int nb_events;
+
+    std::vector<Double_t> rvalues, rhovalues, ymaxvalues, c, ex, ey;
 
     if (files.is_open())
     {
@@ -350,6 +366,7 @@ void compare_c(TApplication * myapp, std::string histofiles)
         //legend.SetHeader(title.c_str());
         while (files >> filename)
         {
+            decode_parameters(filename, &rho, &max_y, &R, &cutoff_type, &nb_events);
             if (std::regex_search(filename, m, r))
             {           
                 Double_t r = std::stod(m[1]);
@@ -361,16 +378,21 @@ void compare_c(TApplication * myapp, std::string histofiles)
                 std::cout << filename << std::endl;
 
                 std::string cutoff_name = "pn_cutoff" + std::to_string(i);
-                TF1 pn_cutoff(cutoff_name.c_str(), "[0] * [1]^2 / [2]^2 * exp(-[1]^2/(2. * [2]^2)) * exp(-x/[3])", 1, 4);
-                pn_cutoff.FixParameter(1, 1.0);
-                pn_cutoff.FixParameter(2, 2.0); // R
-                pn_cutoff.SetParLimits(3, 0.01, 20);
+                TF1 pn_cutoff(cutoff_name.c_str(), "[0] / [1] * exp(-x/[1])", 1, 4);
+                pn_cutoff.SetParameter(1, 0.5); // initial value of fit parameter
+                pn_cutoff.SetParLimits(1, 0.01, 20);
+                //pn_cutoff.FixParameter(2, h->GetMean()*h->GetEntries()); // n mean
                 h->Fit(cutoff_name.c_str(), "*IR0Q+", "goff");
-                std::cerr << r << " " << pn_cutoff.GetParameter(3) << " " << pn_cutoff.GetParError(3) << std::endl;
+
+                std::cerr << pn_cutoff.GetParameter(1) << " " << pn_cutoff.GetParError(1) << std::endl;
+
                 rvalues.push_back(r);
-                c.push_back(pn_cutoff.GetParameter(3));
+                rhovalues.push_back(rho);
+                ymaxvalues.push_back(max_y);
+                c.push_back(pn_cutoff.GetParameter(1));
                 ex.push_back(0.0);
-                ey.push_back(pn_cutoff.GetParError(3));
+                ey.push_back(pn_cutoff.GetParError(1));
+
                 ++i;
             }
             else
@@ -380,7 +402,120 @@ void compare_c(TApplication * myapp, std::string histofiles)
         }
         files.close();
     }    
-    TGraphErrors * g = new TGraphErrors(c.size(), &(rvalues[0]), &(c[0]), &(ex[0]), &(ey[0]));
+
+    TGraphErrors * g;
+    if (mode == "r")
+    {
+        g = new TGraphErrors(c.size(), &(rvalues[0]), &(c[0]), &(ex[0]), &(ey[0]));
+        g->GetXaxis()->SetTitle("r_{s}");
+    }
+    else if (mode == "delta")
+    {
+        g = new TGraphErrors(c.size(), &(rhovalues[0]), &(c[0]), &(ex[0]), &(ey[0]));
+        g->GetXaxis()->SetTitle("Ultraviolet cutoff #delta");
+    }
+    else if (mode == "ymax")
+    {
+        g = new TGraphErrors(c.size(), &(ymaxvalues[0]), &(c[0]), &(ex[0]), &(ey[0]));
+        g->GetXaxis()->SetTitle("Maximum rapidity y_{max}");        
+    }
+    g->GetXaxis()->CenterTitle();
+    g->GetXaxis()->SetTitleOffset(1.4);
+    g->GetYaxis()->CenterTitle();
+    g->GetYaxis()->SetTitleOffset(1.5);
+    g->GetYaxis()->SetTitle("Value of c");
+    gStyle->SetErrorX(0.);   
+    g->SetTitle("");
     g->Draw("AP");  
+
+    
+    gPad->Print("compare-c.eps");
+
+    myapp->Run();
+}
+
+void compare_R(TApplication * myapp, std::string histofiles,
+                    std::map<std::string, TF1 *> cutoffs)
+{
+    TCanvas canvas("canvas", "Sizes", 1080, 780);
+    //gPad->SetLogy();
+    gStyle->SetOptStat(0); // get rid of the statistics box
+
+    std::ifstream files(histofiles);
+    int lineColor, lineWidth;
+    std::string title, filename, cutoff_type;
+
+    Double_t rho, max_y, R;
+    int nb_events;
+
+    TLegend legend(0.2, 0.2, 0.4, 0.5);
+    legend.SetFillColor(0); // white bg
+    legend.SetBorderSize(0); // get rid of the box
+    legend.SetTextSize(0.045);
+
+    THStack * stack = new THStack("hs", "");
+
+    std::vector<Double_t> valuesY, valuesX, c;
+    std::vector<TH1F* > histograms;
+    Double_t x = 2;
+    
+    if (files.is_open())
+    {
+        int i = 0;
+        //files >> title;
+        //legend.SetHeader(title.c_str());
+        while (files >> lineColor >> lineWidth >> title >> filename)
+        {
+            decode_parameters(filename, &rho, &max_y, &R, &cutoff_type, &nb_events);
+            std::cerr << cutoff_type << std::endl;
+            cutoffs[cutoff_type]->SetName("cutoff");
+            cutoffs[cutoff_type]->SetParameter(0, 1.0);
+            cutoffs[cutoff_type]->SetParameter(1, R);
+            Double_t cut = cutoffs[cutoff_type]->Eval(1.0, 0.0);
+            
+            TFile f(filename.c_str(), "READ");
+            TH1F * h = n_to_nbar((TH1F*) f.Get("hfluct"));
+            histograms.push_back(h);
+            h->SetLineColor(lineColor);
+            h->SetLineWidth(lineWidth);
+            h->SetDirectory(0);
+
+            //h->Draw((i == 0) ? "E1" : "E1 same");
+            //legend.AddEntry(h, title.c_str(), "L");
+            //std::cout << filename << std::endl;
+
+            std::string cutoff_name = "pn_cutoff" + std::to_string(i);
+            // FIXME pn_cutoff is wrong here
+            TF1 pn_cutoff(cutoff_name.c_str(), "[0] / [1] * exp(-x/[1])", 1, 4);
+            pn_cutoff.SetParameter(1, 0.5); // initial value
+            pn_cutoff.SetParLimits(1, 0.01, 20);
+            //pn_cutoff.FixParameter(4, cut);
+            h->Fit(cutoff_name.c_str(), "*IR0+");
+
+            valuesY.push_back(pn_cutoff.GetParameter(0));
+            valuesX.push_back(1.0 / R);
+            std::cerr << valuesX.back() << " " << valuesY.back() << std::endl;
+
+            stack->Add(h);
+            ++i;
+        }
+        files.close();
+    } 
+    //stack->Draw("nostack");
+
+    TF1 * fR = new TF1("fR", "[0] * x^2 * exp(-x^2/2)", 0.3, 0.8);
+
+    TGraph * g = new TGraph(valuesX.size(), &(valuesX[0]), &(valuesY[0]));
+    g->GetXaxis()->SetTitle("x_{01} / R");
+    g->GetXaxis()->CenterTitle();
+    g->GetXaxis()->SetTitleOffset(1.2);
+    g->GetYaxis()->CenterTitle();
+    //g->GetYaxis()->SetTitleOffset(1.5);
+    g->GetYaxis()->SetTitle("P_{n} c #bar{n} e^{#frac{n}{c #bar{n}}}");
+    //gStyle->SetErrorX(0.);   
+    g->Draw("AP*");
+
+    g->Fit("fR", "*IR+");
+
     myapp->Run();
 }

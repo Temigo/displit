@@ -67,11 +67,14 @@ TH1F * n_to_nbar(TH1F * old_hist)
     {
         Double_t y = old_hist->GetBinContent(i);
         Double_t x = old_hist->GetXaxis()->GetBinCenter(i);
-        Double_t error = old_hist->GetBinError(i)/nentries;
+        //Double_t error = old_hist->GetBinError(i)/nentries;
+        Double_t error = old_hist->GetBinError(i);
         Double_t xnew = x / nbar;
-        new_hist->Fill(xnew, y/nentries);
+        //new_hist->Fill(xnew, y/nentries);
+        new_hist->Fill(xnew, y);
         new_hist->SetBinError(i, error);
     }
+    new_hist->Scale(1/new_hist->Integral(), "width");
     return new_hist;
 }
 
@@ -257,10 +260,9 @@ void draw_fluctuations(TApplication * myapp, const char * filename,
     if (with_cutoff)
     {
         // Parameter 0 : proportionality | 3 : c
-        TF1 pn_cutoff("pn_cutoff", "[0] * [1]^2 / [2]^2 * exp(-[1]^2/(2. * [2]^2)) * exp(-x/[3])", 1, 5);
-        pn_cutoff.FixParameter(1, x01);
-        pn_cutoff.FixParameter(2, R);
-        pn_cutoff.SetParLimits(3, 0.01, 20); // range for c
+        TF1 pn_cutoff("pn_cutoff", "[0] / [1] * exp(-x/[1])", 1, 5);
+        pn_cutoff.SetParameter(1, 0.5); // initial value
+        pn_cutoff.SetParLimits(1, 0.01, 20); // range for c
         hfluct->Fit("pn_cutoff", "*IR+");
         c.SetTitle(TString::Format("Chi2 : %.12g", pn_cutoff.GetChisquare()));
     }

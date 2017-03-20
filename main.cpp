@@ -21,10 +21,13 @@
 std::vector<Double_t> init_r(Double_t rho)
 {
     std::vector<Double_t> r;
-    for (int k = 2; k <= 100; ++k)
+    //Double_t base = TMath::Power(10, TMath::Floor(TMath::Log10(rho)));
+    Double_t base = 0.001;
+    int k = (int) rho / base;
+    while (k * base <= 1.0)
     {
-        //r.push_back(rho * k);
-        r.push_back(0.01 * k);
+        r.push_back(base * k);
+        ++k;
     } 
     return r;   
 }
@@ -104,6 +107,14 @@ int main( int argc, char* argv[] )
         std::cout << "\n\tancestors [nb_events] [rho] [max_y]";
         std::cout << "\n\tdraw-cutoffs";
         std::cout << std::endl;
+    }
+    else if (val == "list-cutoffs")
+    {
+        std::cout << "List of available IR cutoffs :" << std::endl;
+        for (auto const& cutoff : cutoffs)
+        {
+            std::cout << "\t" << cutoff.first << std::endl;
+        }
     }
     else if (val == "generate-mpi")
     {
@@ -296,6 +307,8 @@ int main( int argc, char* argv[] )
                         s2.append("_r" + std::to_string(r[k]) + "_FINAL");
                         TFile * f = new TFile(s2.c_str(), "recreate");
                         TH1F * hist = new TH1F("hfluct", "hfluct", 100, 0, 0);
+                        TH1F * histLog = new TH1F("hfluctLog", "hfluctLog", 100, 0, 0);
+                        BinLogX(histLog);
                         for (int j = 0; j <repeat; ++j)
                         {
                             ++i;
@@ -310,12 +323,14 @@ int main( int argc, char* argv[] )
                                 while (out >> n)
                                 {
                                     hist->Fill(n);
+                                    histLog->Fill(n);
                                 }
                             }
                             out.close();
                         }
                         if (k < r.size() - 1) i = l;
                         hist->Write();
+                        histLog->Write();
                         f->Close();
                     }
                 }
@@ -428,17 +443,32 @@ int main( int argc, char* argv[] )
     }
     else if (val == "draw-cutoffs")
     {
+        std::map<std::string, TF1 *> cutoffs_custom = {
+            {"gaussian", cutoff_gaussian},
+            {"lorentzian1", cutoff_lorentzian1},
+            //{"lorentzian2", cutoff_lorentzian2},
+            //{"lorentzian3", cutoff_lorentzian3},
+            //{"lorentzian1_2", cutoff_lorentzian1_2},
+            //{"lorentzian2_2", cutoff_lorentzian2_2},
+            //{"lorentzian3_2", cutoff_lorentzian3_2},
+            {"rigid", cutoff_heaviside},
+            //{"rigid2", cutoff_heaviside2},
+            {"tanh1", cutoff_tanh1},
+            //{"tanh2", cutoff_tanh2},
+            //{"tanh1_2", cutoff_tanh1_2},
+            //{"tanh2_2", cutoff_tanh2_2}
+        };        
         std::map<std::string, int> colors = {
             {"gaussian",kBlue},
             {"lorentzian1", kRed-7},
-            {"lorentzian2", kRed},
-            {"lorentzian3", kRed+2},
-            {"lorentzian1_2", kRed+4},
+            //{"lorentzian2", kRed},
+            //{"lorentzian3", kRed+2},
+            //{"lorentzian1_2", kRed+4},
             {"rigid", kOrange},
             {"tanh1", kCyan+1},
-            {"tanh2", kCyan+2}
+            //{"tanh2", kCyan+2}
         };
-        draw_cutoffs(myapp, cutoffs, colors);
+        draw_cutoffs(myapp, cutoffs_custom, colors);
     }
     else if (val == "draw-fluctuations")
     {
@@ -459,8 +489,12 @@ int main( int argc, char* argv[] )
     }
     else if (val == "compare-c")
     {
-        compare_c(myapp, argv[2]);
+        compare_c(myapp, argv[2], argv[3]);
     }    
+    else if (val == "compare-R")
+    {
+        compare_R(myapp, argv[2], cutoffs);
+    }
     else if (val == "stats")
     {
         Double_t x01 = std::stod(argv[2]);
@@ -468,6 +502,16 @@ int main( int argc, char* argv[] )
         std::string filename = argv[4];
         stat_events(myapp, max_y, x01, filename.c_str(), MINIMAL);
     }
+    /*else if (val == "draw")
+    {
+        std::string cutoff_type = "gaussian";
+        cutoffs[cutoff_type]->SetName("cutoff");
+        Event e(0.01, 2.0, 2.0, "lookup_table", cutoff, with_cutoff, raw_cutoff, true);
+        e.WriteLookupTable(); 
+        TTree * tree = new TTree(TString::Format("tree%d", 0), "Dipole splitting");
+        e.make_tree(tree, true, false);
+        myapp->Run();
+    }*/
     else
     {
         std::cout << "Unknown command." << std::endl;
